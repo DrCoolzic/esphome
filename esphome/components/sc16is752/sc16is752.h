@@ -44,8 +44,8 @@ class SC16IS752Component : public Component, public i2c::I2CDevice {
   gpio::Flags flags_;
   uint8_t current_channel_ = 255;
 
-  bool read_inputs_();
-  bool write_register_(uint8_t reg, uint8_t value);
+  // bool read_inputs_();
+  // bool write_register_(uint8_t reg, uint8_t value);
 
   /// Mask for the pin config - 1 means OUTPUT, 0 means INPUT
   uint8_t config_mask_{0x00};
@@ -60,18 +60,12 @@ class SC16IS752Component : public Component, public i2c::I2CDevice {
 /// @brief Describes the UART component part of a SC16IS752 I²C component.
 class SC16IS752Channel : public uart::UARTComponent {
  public:
-  // nicer and more efficient but a bit inconsistent with other ESPHome class!
-  // /// get/set accessors. Usage chanel() = xxx
-  // auto channel() -> uint8_t & { return channel_; }
-  // /// get/set accessors. Usage parrent() = xxx
-  // auto parent() -> SC16IS752Component & { return *parent_; }
-
   /// @brief We belongs to a SC16IS752Component
-  /// @param parent our parrent
+  /// @param parent our parent
   void set_parent(SC16IS752Component *parent) { parent_ = parent; }
   /// @brief Set our channel number
   /// @param channel channel number
-  void set_pin(uint8_t channel) { channel_ = channel; }
+  void set_channel(uint8_t channel) { channel_ = channel; }
 
   /// @brief Write a specified number of bytes from a buffer to a serial port
   /// @param data pointer to the buffer
@@ -92,6 +86,7 @@ class SC16IS752Channel : public uart::UARTComponent {
   void flush() override;
 
  protected:
+  void check_logger_conflict() override;
   /// @brief the channel number of this UART
   uint8_t channel_;
   /// @brief The SC16IS752Component we belongs to
@@ -114,7 +109,7 @@ class SC16IS752GPIOPin : public GPIOPin {
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;
-  // std::string dump_summary() const override;
+  std::string dump_summary() const override;
 
   void set_parent(SC16IS752Component *parent) { parent_ = parent; }
   void set_pin(uint8_t pin) { pin_ = pin; }
