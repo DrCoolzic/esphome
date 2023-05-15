@@ -69,11 +69,16 @@ CONFIG_SCHEMA = (
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
 
     for conf in config[CONF_CHANNELS]:
         chan = cg.new_Pvariable(conf[CONF_UART_ID])
         cg.add(chan.set_parent(var))
         cg.add(chan.set_channel(conf[CONF_CHANNEL]))
+        cg.add(chan.set_baud_rate(conf[CONF_BAUD_RATE]))
+        cg.add(chan.set_stop_bits(conf[CONF_STOP_BITS]))
+        cg.add(chan.set_data_bits(conf[CONF_DATA_BITS]))
+        cg.add(chan.set_parity(conf[CONF_PARITY]))
 
 
 def validate_mode(value):
@@ -82,6 +87,7 @@ def validate_mode(value):
     if value[CONF_INPUT] and value[CONF_OUTPUT]:
         raise cv.Invalid("Mode must be either input or output")
     return value
+
 
 SC16IS752_PIN_SCHEMA = cv.All(
     {
