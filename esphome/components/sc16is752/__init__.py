@@ -50,6 +50,7 @@ SC16IS752_MODELS = {
     "SC16IS752": SC16IS752ComponentModel.SC16IS752_MODEL,
 }
 CONF_MODEL = "model"
+CONF_CRYSTAL = "crystal"
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -58,6 +59,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_MODEL, default="UNKNOWN"): cv.enum(
                 SC16IS752_MODELS, upper=True
             ),
+            cv.Optional(CONF_CRYSTAL, default=0): cv.int_,
             cv.Optional(CONF_CHANNELS, default=[]): cv.ensure_list(
                 {
                     cv.Required(CONF_UART_ID): cv.declare_id(SC16IS752Channel),
@@ -79,8 +81,8 @@ CONFIG_SCHEMA = (
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    model = config[CONF_MODEL]
-    cg.add(var.set_model(model))
+    cg.add(var.set_model(config[CONF_MODEL]))
+    cg.add(var.set_crystal(config[CONF_CRYSTAL]))
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
