@@ -43,6 +43,14 @@ CONF_STOP_BITS = "stop_bits"
 CONF_DATA_BITS = "data_bits"
 CONF_PARITY = "parity"
 
+SC16IS752ComponentModel = sc16is752_ns.enum("SC16IS752ComponentModel")
+SC16IS752_MODELS = {
+    "UNKNOWN": SC16IS752ComponentModel.UNKNOWN_MODEL,
+    "SC16IS750": SC16IS752ComponentModel.SC16IS750_MODEL,
+    "SC16IS752": SC16IS752ComponentModel.SC16IS752_MODEL,
+}
+CONF_MODEL = "model"
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -52,6 +60,9 @@ CONFIG_SCHEMA = (
                     cv.Required(CONF_UART_ID): cv.declare_id(SC16IS752Channel),
                     cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=2),
                     cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
+                    cv.Optional(SC16IS752_MODELS, default="UNKNOWN"): cv.enum(
+                        SC16IS752_MODELS, upper=True
+                    ),
                     cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
                     cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(min=5, max=8),
                     cv.Optional(CONF_PARITY, default="NONE"): cv.enum(
@@ -68,6 +79,7 @@ CONFIG_SCHEMA = (
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
+    cg.add(var.set_model(config(CONF_MODEL)))
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
