@@ -45,25 +45,46 @@ CONF_PARITY = "parity"
 
 SC16IS752ComponentModel = sc16is752_ns.enum("SC16IS752ComponentModel")
 SC16IS752_MODELS = {
-    "UNKNOWN": SC16IS752ComponentModel.UNKNOWN_MODEL,
     "SC16IS750": SC16IS752ComponentModel.SC16IS750_MODEL,
     "SC16IS752": SC16IS752ComponentModel.SC16IS752_MODEL,
 }
 CONF_MODEL = "model"
 CONF_CRYSTAL = "crystal"
 
-CONFIG_SCHEMA = (
+
+def post_validate(value):
+    channel_count = len(value[CONF_CHANNELS])
+    if value[CONF_MODEL] == "SC16IS750":
+        if channel_count > 1:
+            raise cv.Invalid("SC16IS750 can only have one channel")
+        if channel_count > 0 and value[CONF_CHANNELS][0][CONF_CHANNEL] == 1:
+            raise cv.Invalid("Only channel 0 is authorized for a SC16IS750")
+        if value.get(CONF_CRYSTAL) is None:
+            value[CONF_CRYSTAL] = 14745600
+    else:  # SC16IS752
+        if (
+            channel_count > 1
+            and value[CONF_CHANNELS][0][CONF_CHANNEL]
+            == value[CONF_CHANNELS][1][CONF_CHANNEL]
+        ):
+            raise cv.Invalid("Duplicate channel number")
+        if value.get(CONF_CRYSTAL) is None:
+            value[CONF_CRYSTAL] = 3072000
+    return value
+
+
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SC16IS752Component),
-            cv.Optional(CONF_MODEL, default="UNKNOWN"): cv.enum(
+            cv.Optional(CONF_MODEL, default="SC16IS752"): cv.enum(
                 SC16IS752_MODELS, upper=True
             ),
-            cv.Optional(CONF_CRYSTAL, default=0): cv.int_,
+            cv.Optional(CONF_CRYSTAL): cv.int_,
             cv.Optional(CONF_CHANNELS, default=[]): cv.ensure_list(
                 {
                     cv.Required(CONF_UART_ID): cv.declare_id(SC16IS752Channel),
-                    cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=2),
+                    cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=1),
                     cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
                     cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
                     cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(min=5, max=8),
@@ -75,7 +96,8 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(i2c.i2c_device_schema(0x90))
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA),
+    post_validate,
 )
 
 
@@ -85,7 +107,6 @@ async def to_code(config):
     cg.add(var.set_crystal(config[CONF_CRYSTAL]))
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
-
     for conf in config[CONF_CHANNELS]:
         chan = cg.new_Pvariable(conf[CONF_UART_ID])
         cg.add(chan.set_parent(var))

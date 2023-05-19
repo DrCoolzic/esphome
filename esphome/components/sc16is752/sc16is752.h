@@ -42,7 +42,7 @@ enum UARTParityOptions {
   UART_CONFIG_PARITY_EVEN,
   UART_CONFIG_PARITY_ODD,
 };
-enum SC16IS752ComponentModel { UNKNOWN_MODEL, SC16IS750_MODEL, SC16IS752_MODEL };
+enum SC16IS752ComponentModel { SC16IS750_MODEL, SC16IS752_MODEL };
 
 static uint8_t reg_buffer;  // buffer used for register operation
 static const char *const TAG = "sc16is752";
@@ -57,8 +57,7 @@ inline int subaddress(uint8_t reg_addr, uint8_t channel = 0) { return (reg_addr 
 /// that take care of the details for the GPIO pins of the component.
 class SC16IS752Component : public Component, public i2c::I2CDevice {
  public:
-  /// if the model has not been specified in the configuration file we try to guess it
-  void check_model();
+  bool check_model();
 
   /// @brief Set the model (750/752) of the component
   void set_model(SC16IS752ComponentModel model) { model_ = model; }
@@ -100,17 +99,17 @@ class SC16IS752Component : public Component, public i2c::I2CDevice {
   /// The state of the actual input pin states - 1 means HIGH, 0 means LOW
   uint8_t input_mask_{0x00};
   /// @brief The precise model of the component
-  SC16IS752ComponentModel model_{UNKNOWN_MODEL};
+  SC16IS752ComponentModel model_;
 
   // crystal on SC16IS750 is 14.7456MHz => max speed 14745600/16 = 921,600bps.
   // crystal on SC16IS752 is 3.072MHz => max speed 3072000/16 = 192,000bps
-  uint32_t crystal_{0};
+  uint32_t crystal_;
 };
 
 /// @brief Describes the UART part of a SC16IS752 I²C component.
 class SC16IS752Channel : public uart::UARTComponent {
  public:
-  SC16IS752Channel() { fifo_enable(); }
+  SC16IS752Channel() { fifo_enable(); }  // ctor
   void set_parent(SC16IS752Component *parent) { parent_ = parent; }
   void set_channel(uint8_t channel) { channel_ = channel; }
   void set_baudrate(uint32_t baudrate) { baudrate_ = baudrate; }
@@ -142,7 +141,7 @@ class SC16IS752Channel : public uart::UARTComponent {
   /// @return the number of bytes available
   int available() override;
 
-  /// @brief Clears the buffer ??? **once all outgoing characters have been sent**. ???
+  /// @brief Clears the buffer ??? output **once all outgoing characters have been sent**. ???
   void flush() override;
 
  protected:
