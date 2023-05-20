@@ -59,7 +59,7 @@ def post_validate(value):
             raise cv.Invalid("SC16IS750 can only have one channel")
         if channel_count > 0 and value[CONF_CHANNELS][0][CONF_CHANNEL] == 1:
             raise cv.Invalid("Only channel 0 is authorized for a SC16IS750")
-        if value.get(CONF_CRYSTAL) is None:
+        if CONF_CRYSTAL not in value:
             value[CONF_CRYSTAL] = 14745600
     else:  # SC16IS752
         if (
@@ -68,7 +68,7 @@ def post_validate(value):
             == value[CONF_CHANNELS][1][CONF_CHANNEL]
         ):
             raise cv.Invalid("Duplicate channel number")
-        if value.get(CONF_CRYSTAL) is None:
+        if CONF_CRYSTAL not in value:
             value[CONF_CRYSTAL] = 3072000
     return value
 
