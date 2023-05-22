@@ -6,7 +6,6 @@ from esphome.components import uart
 from esphome.const import (
     CONF_BAUD_RATE,
     CONF_CHANNEL,
-    CONF_CHANNELS,
     CONF_ID,
     CONF_INPUT,
     CONF_INVERTED,
@@ -50,22 +49,25 @@ SC16IS752_MODELS = {
 }
 CONF_MODEL = "model"
 CONF_CRYSTAL = "crystal"
+CONF_UART = "uart"
 
 
 def post_validate(value):
-    channel_count = len(value[CONF_CHANNELS])
+    for uart_elem in value[CONF_UART]:
+        if CONF_CHANNEL not in uart_elem:
+            uart_elem[CONF_CHANNEL] = 0
+    uart_count = len(value[CONF_UART])
     if value[CONF_MODEL] == "SC16IS750":
-        if channel_count > 1:
+        if uart_count > 1:
             raise cv.Invalid("SC16IS750 can only have one channel")
-        if channel_count > 0 and value[CONF_CHANNELS][0][CONF_CHANNEL] == 1:
-            raise cv.Invalid("Only channel 0 is authorized for a SC16IS750")
+        if uart_count > 0 and value[CONF_UART][0][CONF_CHANNEL] == 1:
+            raise cv.Invalid("Channel must be 0 for a SC16IS750")
         if CONF_CRYSTAL not in value:
             value[CONF_CRYSTAL] = 14745600
     else:  # SC16IS752
         if (
-            channel_count > 1
-            and value[CONF_CHANNELS][0][CONF_CHANNEL]
-            == value[CONF_CHANNELS][1][CONF_CHANNEL]
+            uart_count > 1
+            and value[CONF_UART][0][CONF_CHANNEL] == value[CONF_UART][1][CONF_CHANNEL]
         ):
             raise cv.Invalid("Duplicate channel number")
         if CONF_CRYSTAL not in value:
@@ -81,10 +83,10 @@ CONFIG_SCHEMA = cv.All(
                 SC16IS752_MODELS, upper=True
             ),
             cv.Optional(CONF_CRYSTAL): cv.int_,
-            cv.Optional(CONF_CHANNELS, default=[]): cv.ensure_list(
+            cv.Optional(CONF_UART, default=[]): cv.ensure_list(
                 {
                     cv.Required(CONF_UART_ID): cv.declare_id(SC16IS752Channel),
-                    cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=1),
+                    cv.Optional(CONF_CHANNEL): cv.int_range(min=0, max=1),
                     cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
                     cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
                     cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(min=5, max=8),
@@ -107,14 +109,14 @@ async def to_code(config):
     cg.add(var.set_crystal(config[CONF_CRYSTAL]))
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
-    for conf in config[CONF_CHANNELS]:
-        chan = cg.new_Pvariable(conf[CONF_UART_ID])
+    for uart_elem in config[CONF_UART]:
+        chan = cg.new_Pvariable(uart_elem[CONF_UART_ID])
         cg.add(chan.set_parent(var))
-        cg.add(chan.set_channel(conf[CONF_CHANNEL]))
-        cg.add(chan.set_baud_rate(conf[CONF_BAUD_RATE]))
-        cg.add(chan.set_stop_bits(conf[CONF_STOP_BITS]))
-        cg.add(chan.set_data_bits(conf[CONF_DATA_BITS]))
-        cg.add(chan.set_parity(conf[CONF_PARITY]))
+        cg.add(chan.set_channel(uart_elem[CONF_CHANNEL]))
+        cg.add(chan.set_baud_rate(uart_elem[CONF_BAUD_RATE]))
+        cg.add(chan.set_stop_bits(uart_elem[CONF_STOP_BITS]))
+        cg.add(chan.set_data_bits(uart_elem[CONF_DATA_BITS]))
+        cg.add(chan.set_parity(uart_elem[CONF_PARITY]))
 
 
 def validate_mode(value):
