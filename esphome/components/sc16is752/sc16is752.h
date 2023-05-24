@@ -1,3 +1,7 @@
+/// @file sc16s752.h
+/// @author @DrCoolzic
+/// @brief sc16is752 interface
+
 #pragma once
 
 #include "esphome/core/component.h"
@@ -7,9 +11,9 @@
 namespace esphome {
 namespace sc16is752 {
 
-// General registers
-const uint8_t SC16IS752_REG_RHR = 0x00;    // receive holding register (r) with 64-bytes FIFO (if enabled)
-const uint8_t SC16IS752_REG_THR = 0X00;    // transmit holding register (w) with 64-bytes FIFO if (enabled)
+// General sc16is752 registers
+const uint8_t SC16IS752_REG_RHR = 0x00;    // receive holding register (r) with a 64-bytes FIFO
+const uint8_t SC16IS752_REG_THR = 0X00;    // transmit holding register (w) with a 64-bytes FIFO
 const uint8_t SC16IS752_REG_IER = 0X01;    // interrupt enable register (r/w)
 const uint8_t SC16IS752_REG_IIR = 0X02;    // interrupt identification register (r)
 const uint8_t SC16IS752_REG_FCR = 0X02;    // FIFO control register (w)
@@ -36,39 +40,46 @@ const uint8_t SC16IS752_REG_XON1 = 0X04;   // Xon1 word (rw) only if LCR=0xBF (1
 const uint8_t SC16IS752_REG_XON2 = 0X05;   // Xon2 word (rw) only if LCR=0xBF (1011 1111)
 const uint8_t SC16IS752_REG_XOFF1 = 0X06;  // Xoff1 word (rw) only if LCR=0xBF (1011 1111)
 const uint8_t SC16IS752_REG_XOFF2 = 0X07;  // Xoff2 word (rw) only if LCR=0xBF (1011 1111)
-// Parity options
+
+/// @brief Parity options
 enum UARTParityOptions {
   UART_CONFIG_PARITY_NONE,
   UART_CONFIG_PARITY_EVEN,
   UART_CONFIG_PARITY_ODD,
 };
-// supported chip model
+
+/// @brief supported chip models
 enum SC16IS752ComponentModel { SC16IS750_MODEL, SC16IS752_MODEL };
 
-
-
-/// @brief Describes a SC16IS752 I²C component.
-/// We have two related class :tThe SC16IS752Channel class that
-/// take cares of the UART related functions and the SC16IS752GPIOPin
-/// that take care of the details for the GPIO pins of the component.
+/// @brief This class describes a SC16IS752 I²C component.
+///
+/// This class derives from two @ref esphome classes:
+/// - the @ref Component class. We redefine the @ref Component::setup(),
+/// @ref Component::dump_config() and @ref Component::get_setup_priority() methods
+/// - the @ref i2c::I2CDevice class. From which we use some methods
+///
+/// We have two related class :
+/// - the @ref SC16IS752Channel class that
+/// takes cares of the UART related functions
+/// - the @ref SC16IS752GPIOPin
+/// that takes care of the details for the GPIO pins of the component.
 class SC16IS752Component : public Component, public i2c::I2CDevice {
  public:
   void set_model(SC16IS752ComponentModel model) { model_ = model; }
   void set_crystal(uint32_t crystal) { crystal_ = crystal; }
 
-  //  overloaded Component virtual functions
+  //  override Component functions
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::IO; }
-  void update();
 
  protected:
-  // we give access to protected object to our friends
+  // we give access to protected object to our friends :)
   friend class SC16IS752Channel;
   friend class SC16IS752GPIOPin;
 
-  void write_sc16is752_register_(uint8_t reg_address, uint8_t channel, const uint8_t *data, size_t len);
-  void read_sc16is752_register_(uint8_t reg_address, uint8_t channel, uint8_t *data, size_t len);
+  void write_sc16is752_register_(uint8_t reg_address, uint8_t channel, const uint8_t *buffer, size_t len);
+  void read_sc16is752_register_(uint8_t reg_address, uint8_t channel, uint8_t *buffer, size_t len);
   int read_io_register_(int reg_address);
   void write_io_register_(int reg_address, uint8_t value);
   bool check_model_();
@@ -79,8 +90,8 @@ class SC16IS752Component : public Component, public i2c::I2CDevice {
   /// Helper function to set the pin mode of a pin.
   void set_pin_mode_(uint8_t pin, gpio::Flags flags);
   // the register address is composed of the register value and the channel value.
-  // note that for I/O the chanel value is not significant
-  inline int subaddress_(int reg_addr, int channel = 0) { return (reg_addr << 3 | channel << 1); }
+  // note that for I/O related register the chanel value is not significant
+  inline uint8_t subaddress_(uint8_t reg_addr, uint8_t channel = 0) { return (reg_addr << 3 | channel << 1); }
 
   /// Mask for the pin config - 1 means OUTPUT, 0 means INPUT
   uint8_t pin_config_{0x00};
@@ -92,18 +103,23 @@ class SC16IS752Component : public Component, public i2c::I2CDevice {
   SC16IS752ComponentModel model_;
   /// crystal default on SC16IS750 => 14.7456MHz -  on SC16IS752 => 3.072MHz
   uint32_t crystal_;
-  /// buffer used for register operatio
-  uint8_t reg_buffer;
+  /// one byte buffer used for register operation
+  uint8_t buffer_;
 };
 
-
-
 /// @brief Describes the UART part of a SC16IS752 I²C component.
+///
+/// This class derives from the @ref esphome @ref uart::UARTComponent class.
+/// As the @ref uart::UARTComponent is a pure virtual class we need to
+/// implement the following functions : @ref uart::UARTComponent::write_array(),
+/// @ref uart::UARTComponent::read_array(), @ref uart::UARTComponent::peek_byte(),
+/// @ref uart::UARTComponent::available(), @ref uart::UARTComponent::flush().
 class SC16IS752Channel : public uart::UARTComponent {
  public:
-  SC16IS752Channel() { fifo_enable_(); }  // ctor
+  /// @brief TODO
+  // SC16IS752Channel(int channel = 0) : channel_(channel) { fifo_enable_(true); }
   void set_parent(SC16IS752Component *parent) { parent_ = parent; }
-  void set_channel(uint8_t channel) { channel_ = channel; }
+  void set_channel(uint8_t channel);
   void set_baudrate(uint32_t baudrate) { baudrate_ = baudrate; }
   void set_stop_bits(int stop_bits) { stop_bits_ = stop_bits; }
   void set_data_bits(int data_bits) { data_bits_ = data_bits; }
@@ -114,26 +130,28 @@ class SC16IS752Channel : public uart::UARTComponent {
   //
 
   /// @brief Write a specified number of bytes from a buffer to a serial port
-  /// @param data pointer to the buffer
+  /// @param buffer pointer to the buffer
   /// @param len number of bytes to write
-  void write_array(const uint8_t *data, size_t len) override;
+  void write_array(const uint8_t *buffer, size_t len) override;
 
   /// @brief Read a specified number of bytes from a serial port to an buffer
-  /// @param data pointer to the buffer
+  /// @param buffer pointer to the buffer
   /// @param len number of bytes to read
-  /// @return seems to always return true
-  bool read_array(uint8_t *data, size_t len) override;
+  /// @return true if succeed false otherwise
+  bool read_array(uint8_t *buffer, size_t len) override;
 
   /// @brief Read next byte available from serial buffer without removing it
-  /// @param data pointer to the byte
-  /// @return seems to always return true;
-  bool peek_byte(uint8_t *data) override;
+  /// @param buffer pointer to the byte
+  /// @return true if succeed false otherwise
+  bool peek_byte(uint8_t *buffer) override;
 
   /// @brief Get the number of bytes available for reading from the serial port.
-  /// @return the number of bytes available
+  /// @return the number of bytes available in the fifo
   int available() override { return rx_fifo_level_(); }
 
-  /// @brief Clears the buffer ??? output **once all outgoing characters have been sent**. ???
+  /// @brief do nothing!
+  ///
+  /// supposed to clear the buffer output **once all outgoing characters have been sent**. ???
   void flush() override;
 
  protected:
@@ -160,9 +178,7 @@ class SC16IS752Channel : public uart::UARTComponent {
   } peek_;
 };
 
-
-
-/// Helper class to expose a SC16IS752 pin as an internal input GPIO pin.
+/// @brief Helper class to expose a SC16IS752 pin as an internal input GPIO pin.
 class SC16IS752GPIOPin : public GPIOPin {
  public:
   //

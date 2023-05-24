@@ -1,3 +1,7 @@
+/// @file sc16s752.cpp
+/// @author @DrCoolzic
+/// @brief sc16is752 implementation
+
 #include "sc16is752.h"
 
 namespace esphome {
@@ -5,37 +9,42 @@ namespace sc16is752 {
 
 static const char *const TAG = "sc16is752";
 
-////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 // The SC16IS752Component methods
-////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
 bool SC16IS752Component::check_model_() {
-  // we test the scratchpad reg for channel 1 if succeed then it is a 752
-  reg_buffer = 0xAA;
-  write_register(subaddress_(SC16IS752_REG_SPR, 1), &reg_buffer, 1);
-  if ((read_register(subaddress_(SC16IS752_REG_SPR, 1), &reg_buffer, 1) == 0xAA) && (model_ == SC16IS752_MODEL))
-    return true;
-  else
-    return false;
+  // TODO
+  // // we test the scratchpad reg for channel 1 if succeed then it is a 752
+  // buffer_ = 0xAA;
+  // write_register(subaddress_(SC16IS752_REG_SPR, 1), &buffer_, 1);
+  // if ((read_register(subaddress_(SC16IS752_REG_SPR, 1), &buffer_, 1) == 0xAA) && (model_ == SC16IS752_MODEL))
+  //   return true;
+  // else
+  //   return false;
+  return true;
 }
 
-void SC16IS752Component::write_sc16is752_register_(uint8_t reg_address, uint8_t channel, const uint8_t *data,
+void SC16IS752Component::write_sc16is752_register_(uint8_t reg_address, uint8_t channel, const uint8_t *buffer,
                                                    size_t len) {
-  auto error = this->write_register(subaddress_(reg_address, channel), data, len);
+  auto sub = subaddress_(reg_address, channel);
+  auto error = this->write_register(sub, buffer, len);
   if (error == i2c::ERROR_OK)
     this->status_clear_warning();
   else {
     this->status_set_warning();
-    ESP_LOGE(TAG, "write_register_(): I2C I/O error: %d", (int) error);
+    ESP_LOGE(TAG, "write_register_(a=%x, b=%x, l=%d): I2C I/O error: %d", sub, *buffer, len, (int) error);
   }
 }
 
-void SC16IS752Component::read_sc16is752_register_(uint8_t reg_address, uint8_t channel, uint8_t *data, size_t len) {
-  auto error = this->read_register(subaddress_(reg_address, channel), data, len);
+void SC16IS752Component::read_sc16is752_register_(uint8_t reg_address, uint8_t channel, uint8_t *buffer, size_t len) {
+  auto sub = subaddress_(reg_address, channel);
+  auto error = this->read_register(sub, buffer, len);
   if ((error == i2c::ERROR_OK))
     this->status_clear_warning();
   else {
     this->status_set_warning();
-    ESP_LOGE(TAG, "read_register_(): I2C I/O error: %d", (int) error);
+    ESP_LOGE(TAG, "read_register_(a=%x, b=%x..., l=%d): I2C I/O error: %d", sub, *buffer, len, (int) error);
   }
 }
 
@@ -80,7 +89,7 @@ void SC16IS752Component::setup() {
   std::string model_name = model_ == SC16IS750_MODEL ? "SC16IS750" : "SC16IS752";
   ESP_LOGCONFIG(TAG, "Setting up %s...", model_name);
   // we read anything just to test communication
-  if (this->read(&reg_buffer, 1) != i2c::ERROR_OK) {
+  if (this->read(&buffer_, 1) != i2c::ERROR_OK) {
     ESP_LOGCONFIG(TAG, "%s failed", model_name);
     this->mark_failed();
     return;
@@ -90,76 +99,107 @@ void SC16IS752Component::setup() {
 }
 
 void SC16IS752Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "%s:", model_);
+  std::string model_name = model_ == SC16IS750_MODEL ? "SC16IS750" : "SC16IS752";
+  ESP_LOGCONFIG(TAG, "%s:", model_name);
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with %s failed!", model_);
+    ESP_LOGE(TAG, "Communication with %s failed!", model_name);
   }
 }
 
-// nothing to do ?
-void SC16IS752Component::update() {}
-
-///////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 // The SC16IS752Channel methods
-///////////////////////////////
-
-/// @TODO : timeout
-void SC16IS752Channel::write_array(const uint8_t *data, size_t len) {
-  int pos = 0;
-  int remaining = len;
-  do {
-    // put as much bytes as we can
-    auto put = std::min(tx_fifo_level_(), remaining);
-    parent_->write_sc16is752_register_(SC16IS752_REG_RHR, channel_, &data[pos], put);
-    remaining -= put;
-    pos += put;
-  } while (remaining > 0);
+///////////////////////////////////////////////////////////////////////////////
+void SC16IS752Channel::set_channel(uint8_t channel) {
+  channel_ = channel;
+  fifo_enable_(channel);
 }
 
-/// @TODO timeout
-bool SC16IS752Channel::read_array(uint8_t *data, size_t len) {
-  int pos = 0;
-  int remaining = len;
+/// **IMPLEMENTATION DETAILS** - I am not aware of any formal definition of this
+/// function written somewhere, but based on common sense and looking at Arduino
+/// code it seems that the following is expected:
+/// - the function tries to receive 'len' characters from the uart into buffer:
+///   - terminates with true if requested number of characters have been read,
+///   - terminates with false if we have a timeout condition
+/// Note that the SC16IS75X UART has a 64 bytes internal buffer
+bool SC16IS752Channel::read_array(uint8_t *buffer, size_t len) {
   if (!peek_.empty) {
-    data[pos++] = peek_.byte;
+    *buffer++ = peek_.byte;
     peek_.empty = true;
-    remaining--;
-    if (remaining == 0)
+    len--;
+    if (len == 0)
       return true;
   }
 
-  do {
-    // get as much byte as we can
-    auto get = std::min(rx_fifo_level_(), remaining);
-    parent_->read_sc16is752_register_(SC16IS752_REG_RHR, channel_, &data[pos], get);
-    remaining -= get;
-    pos += get;
-  } while (remaining > 0);
+  if (!check_read_timeout_(len))
+    return false;
+
+  uint32_t start_time = millis();
+  while (rx_fifo_level_() < len) {
+    if (millis() - start_time > 100) {
+      ESP_LOGE(TAG, "Reading from UART timed out at byte %u!", this->available());
+      return false;
+    }
+    yield();  // not sure what it does?
+  }
+  parent_->read_sc16is752_register_(SC16IS752_REG_RHR, channel_, buffer, len);
   return true;
 }
 
-/// @TODO timeout
-bool SC16IS752Channel::peek_byte(uint8_t *data) {
+/// @brief Please refer to @ref read_array() for more information
+bool SC16IS752Channel::peek_byte(uint8_t *buffer) {
   if (peek_.empty) {
     peek_.empty = false;
-    do {  // wait until at least one char received
-    } while (rx_fifo_level_() < 1);
+
+    uint32_t start_time = millis();
+    while (rx_fifo_level_() == 0) {
+      if (millis() - start_time > 100) {
+        ESP_LOGE(TAG, "Peeking from UART timed out!");
+        return false;
+      }
+      yield();  // not sure what it does?
+    }
     peek_.byte = read_uart_register_(SC16IS752_REG_RHR);
   }
-  *data = peek_.byte;
+  *buffer = peek_.byte;
   return true;
 }
 
-/// @TODO timeout
+/// **IMPLEMENTATION DETAILS** - I am not aware of any formal definition of this
+/// function written somewhere, but based on common sense and looking at Arduino
+/// code it seems that the following is expected:
+/// - the function tries to send 'len' characters through uart from buffer
+///
+/// Even though the read_byte function is poorly defined the write function is worse
+/// for several reasons: There is no indication on available buffer size for writing
+/// therefore you send without knowing if it will succeed, and even more importantly
+/// when you call this function you do not know if the bytes have been sent
+/// successfully. In other word you are totally blind when using this function!
+/// Therefore here is what I do:
+/// - if 'len' is less that available space in fifo I send all char into the
+/// TX fifo and I return
+/// - otherwise I return false
+void SC16IS752Channel::write_array(const uint8_t *buffer, size_t len) {
+  if (len > tx_fifo_level_())
+    return;
+  parent_->write_sc16is752_register_(SC16IS752_REG_RHR, channel_, buffer, len);
+}
+
+/// **IMPLEMENTATION DETAILS** - This function is the worse of all UART functions !!! To me it
+/// does not make sense at all and I have no idea how someone could use it.  If we
+/// refer to Serial.flush() in Arduino we have:
+/// ** Waits for the transmission of outgoing serial data to complete. (Prior to Arduino 1.0,
+/// this instead removed any buffered incoming serial data.) **
+/// While flushing an input fifo make sense, flushing an output fifo make no sense!
+/// Therefore I do nothing
 void SC16IS752Channel::flush() {
-  do {
-  } while ((read_uart_register_(SC16IS752_REG_LSR) & 0x20) == 0);  // loop until THR empty (bit[5])
+  ESP_LOGE(TAG, "This functions is not implemented");
+  parent_->mark_failed();
 }
 
 uint8_t SC16IS752Channel::read_uart_register_(int reg_address) {
-  parent_->read_sc16is752_register_(reg_address, channel_, &parent_->reg_buffer, 1);
-  return parent_->reg_buffer;
+  parent_->read_sc16is752_register_(reg_address, channel_, &parent_->buffer_, 1);
+  return parent_->buffer_;
 }
 
 void SC16IS752Channel::write_uart_register_(int reg_address, uint8_t value) {
@@ -239,9 +279,9 @@ void SC16IS752Channel::set_baudrate_() {
   ESP_LOGI(TAG, "Requested baudrate =%ld - actual baudrate=%ld", baudrate_, actual_baudrate);
 }
 
-///////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 // The SC16IS752GPIOPin methods
-///////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 //
 // overloaded GPIOPin
 //
