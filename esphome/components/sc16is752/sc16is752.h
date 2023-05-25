@@ -41,12 +41,19 @@ const uint8_t SC16IS752_REG_XON2 = 0X05;   // Xon2 word (rw) only if LCR=0xBF (1
 const uint8_t SC16IS752_REG_XOFF1 = 0X06;  // Xoff1 word (rw) only if LCR=0xBF (1011 1111)
 const uint8_t SC16IS752_REG_XOFF2 = 0X07;  // Xoff2 word (rw) only if LCR=0xBF (1011 1111)
 
+static const char *write_reg_to_str[] = {"THR",   "IER",   "FCR",   "LCR",   "MCR",   "LSR",   "TCR", "SPR",
+                                         "_INV_", "_INV_", "IODIR", "IOPIN", "IOINT", "IOCTR", "EFCR"};
+static const char *read_reg_to_str[] = {"RHR",  "IER",  "IIR",   "LCR",   "MCR",   "LSR",   "MSR", "SPR",
+                                        "TXLV", "RXLV", "IODIR", "IOPIN", "IOINT", "IOCTR", "EFCR"};
+
 /// @brief Parity options
 enum UARTParityOptions {
   UART_CONFIG_PARITY_NONE,
   UART_CONFIG_PARITY_EVEN,
   UART_CONFIG_PARITY_ODD,
 };
+
+class SC16IS752Channel;
 
 /// @brief supported chip models
 enum SC16IS752ComponentModel { SC16IS750_MODEL, SC16IS752_MODEL };
@@ -105,6 +112,7 @@ class SC16IS752Component : public Component, public i2c::I2CDevice {
   uint32_t crystal_;
   /// one byte buffer used for register operation
   uint8_t buffer_;
+  std::vector<SC16IS752Channel *> children{};
 };
 
 /// @brief Describes the UART part of a SC16IS752 I²C component.
@@ -116,11 +124,12 @@ class SC16IS752Component : public Component, public i2c::I2CDevice {
 /// @ref uart::UARTComponent::available(), @ref uart::UARTComponent::flush().
 class SC16IS752Channel : public uart::UARTComponent {
  public:
-  /// @brief TODO
-  // SC16IS752Channel(int channel = 0) : channel_(channel) { fifo_enable_(true); }
-  void set_parent(SC16IS752Component *parent) { parent_ = parent; }
-  void set_channel(uint8_t channel);
-  void set_baudrate(uint32_t baudrate) { baudrate_ = baudrate; }
+  void set_parent(SC16IS752Component *parent) {
+    parent_ = parent;
+    parent_->children.push_back(this);
+  }
+  void set_channel(uint8_t channel) { channel_ = channel; }
+  void set_baud_rate(uint32_t baudrate) { baudrate_ = baudrate; }
   void set_stop_bits(int stop_bits) { stop_bits_ = stop_bits; }
   void set_data_bits(int data_bits) { data_bits_ = data_bits; }
   void set_parity(UARTParityOptions parity) { parity_ = parity; }
@@ -155,6 +164,7 @@ class SC16IS752Channel : public uart::UARTComponent {
   void flush() override;
 
  protected:
+  friend class SC16IS752Component;
   /// @brief cannot happen with our component!
   void check_logger_conflict() override {}
 
