@@ -14,19 +14,17 @@ static const char *const TAG = "sc16is752";
 ///////////////////////////////////////////////////////////////////////////////
 
 bool SC16IS752Component::check_model_() {
-  // TODO
-  // // we test the scratchpad reg for channel 1 if succeed then it is a 752
-  // buffer_ = 0xAA;
-  // write_register(subaddress_(SC16IS752_REG_SPR, 1), &buffer_, 1);
-  // if ((read_register(subaddress_(SC16IS752_REG_SPR, 1), &buffer_, 1) == 0xAA) && (model_ == SC16IS752_MODEL))
-  //   return true;
-  // else
-  //   return false;
-  return true;
+  // we test the scratchpad reg for channel 1 if succeed then it is a 752
+  buffer_ = 0xAA;
+  write_sc16is752_register_(SC16IS752_REG_SPR, 1, &buffer_, 1);
+  if ((read_sc16is752_register_(SC16IS752_REG_SPR, 1, &buffer_, 1) == 0xAA) && (model_ == SC16IS752_MODEL))
+    return true;
+  else
+    return false;
 }
 
-void SC16IS752Component::write_sc16is752_register_(uint8_t reg_address, uint8_t channel, const uint8_t *buffer,
-                                                   size_t len) {
+i2c::ErrorCode SC16IS752Component::write_sc16is752_register_(uint8_t reg_address, uint8_t channel,
+                                                             const uint8_t *buffer, size_t len) {
   auto sub = subaddress_(reg_address, channel);
   auto error = this->write_register(sub, buffer, len);
   if (error == i2c::ERROR_OK) {
@@ -38,9 +36,11 @@ void SC16IS752Component::write_sc16is752_register_(uint8_t reg_address, uint8_t 
     ESP_LOGE(TAG, "I2CDevice::write_register(0x%02X[%s,%X], b=%X..., l=%d): I2C I/O error: %d", sub,
              write_reg_to_str[reg_address], channel, *buffer, len, (int) error);
   }
+  return error;
 }
 
-void SC16IS752Component::read_sc16is752_register_(uint8_t reg_address, uint8_t channel, uint8_t *buffer, size_t len) {
+i2c::ErrorCode SC16IS752Component::read_sc16is752_register_(uint8_t reg_address, uint8_t channel, uint8_t *buffer,
+                                                            size_t len) {
   auto sub = subaddress_(reg_address, channel);
   auto error = this->read_register(sub, buffer, len);
   if ((error == i2c::ERROR_OK)) {
@@ -52,13 +52,14 @@ void SC16IS752Component::read_sc16is752_register_(uint8_t reg_address, uint8_t c
     ESP_LOGE(TAG, "I2CDevice::read_register(0x%02X[%s,%X], b=%X..., l=%d): I2C I/O error: %d", sub,
              read_reg_to_str[reg_address], channel, *buffer, len, (int) error);
   }
+  return error;
 }
 
 void SC16IS752Component::write_io_register_(int reg_address, uint8_t value) {
   write_sc16is752_register_(reg_address, 0, &value, 1);
 }
 
-int SC16IS752Component::read_io_register_(int reg_address) {
+uint8_t SC16IS752Component::read_io_register_(int reg_address) {
   uint8_t data;
   read_sc16is752_register_(reg_address, 0, &data, 1);
   return data;
@@ -70,22 +71,16 @@ bool SC16IS752Component::read_pin_val_(uint8_t pin) {
 }
 
 void SC16IS752Component::write_pin_val_(uint8_t pin, bool value) {
-  if (value) {
-    this->output_state_ |= (1 << pin);
-  } else {
-    this->output_state_ &= ~(1 << pin);
-  }
+  value ? this->output_state_ |= (1 << pin) : this->output_state_ &= ~(1 << pin);
   this->write_io_register_(SC16IS752_REG_IOPIN, this->output_state_);
 }
 
 void SC16IS752Component::set_pin_mode_(uint8_t pin, gpio::Flags flags) {
-  if (flags == gpio::FLAG_INPUT) {
+  if (flags == gpio::FLAG_INPUT)
     this->pin_config_ &= ~(1 << pin);  // clear bit (input mode)
-    if (flags == gpio::FLAG_OUTPUT) {
-      this->pin_config_ |= 1 << pin;   // set bit (output mode)
-    }
-    this->write_io_register_(SC16IS752_REG_IODIR, ~this->pin_config_);
-  }
+  if (flags == gpio::FLAG_OUTPUT)
+    this->pin_config_ |= 1 << pin;     // set bit (output mode)
+  this->write_io_register_(SC16IS752_REG_IODIR, ~this->pin_config_);
 }
 
 //
@@ -94,15 +89,17 @@ void SC16IS752Component::set_pin_mode_(uint8_t pin, gpio::Flags flags) {
 void SC16IS752Component::setup() {
   const char *model_name = (model_ == SC16IS750_MODEL) ? "SC16IS750" : "SC16IS752";
   ESP_LOGCONFIG(TAG, "Setting up %s with %d UARTs...", model_name, (int) children.size());
-  // we read anything just to test communication TODO
-  if (this->read(&buffer_, 1) != i2c::ERROR_OK) {
+  // we read anything just to test communication
+  if (read_sc16is752_register_(0, 0, &buffer_, 1) != i2c::ERROR_OK) {
     ESP_LOGCONFIG(TAG, "%s failed", model_name);
     this->mark_failed();
   }
-  if (!check_model_())
+  if (!check_model_()) {
     ESP_LOGCONFIG(TAG, "Wrong model %s specified?", model_name);
+    this->mark_failed();
+  }
 
-  // we setup our children
+  // we can now setup our children
   for (auto i = 0; i < children.size(); i++) {
     ESP_LOGCONFIG(TAG, "Setting up %s UART %d...", model_name, i);
     children[i]->fifo_enable_(true);
@@ -121,6 +118,7 @@ void SC16IS752Component::dump_config() {
 
   for (auto i = 0; i < children.size(); i++) {
     ESP_LOGCONFIG(TAG, "%s UART %d...", model_name, i);
+    // ... TODO more ?
   }
 }
 
@@ -131,20 +129,19 @@ void SC16IS752Component::dump_config() {
 /// **IMPLEMENTATION DETAILS** - I am not aware of any formal definition of this
 /// function written somewhere, but based on common sense and looking at Arduino
 /// code it seems that the following is expected:
-/// - the function tries to receive 'len' characters from the uart into buffer:
-///   - terminates with true if requested number of characters have been read,
-///   - terminates with false if we have a timeout condition
+/// - the function **tries** to receive 'len' characters from the uart into buffer:
+///   - it terminates with true if requested number of characters have been read,
+///   - it terminates with false if we have a timeout condition
 /// Note that the SC16IS75X UART has a 64 bytes internal buffer
 bool SC16IS752Channel::read_array(uint8_t *buffer, size_t len) {
   if (!peek_.empty) {
     *buffer++ = peek_.byte;
     peek_.empty = true;
-    len--;
-    if (len == 0)
+    if (--len == 0)
       return true;
   }
 
-  if (!check_read_timeout_(len)) {  // timeout
+  if (!check_read_timeout_(len)) {  // check timeout if we read
     ESP_LOGE(TAG, "Reading from UART timed out ...");
     return false;
   }
@@ -161,11 +158,10 @@ bool SC16IS752Channel::read_array(uint8_t *buffer, size_t len) {
   return true;
 }
 
-/// @brief Please refer to @ref read_array() for more information
+/// @brief Please refer to @ref read_array() for more information on this method.
 bool SC16IS752Channel::peek_byte(uint8_t *buffer) {
   if (peek_.empty) {
     peek_.empty = false;
-
     uint32_t start_time = millis();
     while (rx_fifo_level_() == 0) {
       if (millis() - start_time > 100) {
@@ -183,29 +179,33 @@ bool SC16IS752Channel::peek_byte(uint8_t *buffer) {
 /// **IMPLEMENTATION DETAILS** - I am not aware of any formal definition of this
 /// function written somewhere, but based on common sense and looking at Arduino
 /// code it seems that the following is expected:
-/// - the function tries to send 'len' characters through uart from buffer
+/// - the function **tries** to send 'len' characters to uart from buffer
 ///
 /// Even though the read_byte function is poorly defined the write function is worse
-/// for several reasons: There is no indication on available buffer size for writing
-/// therefore you send without knowing if it will succeed, and even more importantly
-/// when you call this function you do not know if the bytes have been sent
-/// successfully. In other word you are totally blind when using this function!
+/// for several reasons:
+/// - There is no indication on available buffer size for writing
+///   therefore you send without knowing if it will succeed...
+/// - and even more importantly when you call this function you do not know
+///   if the bytes have been sent successfully.
+///
+/// In other word you are **totally blind** when using this function!
 /// Therefore here is what I do:
 /// - if 'len' is less that available space in fifo I send all char into the
-/// TX fifo and I return
-/// - otherwise I return false
+///   TX fifo and I return
+/// - otherwise I return without doing anything
 void SC16IS752Channel::write_array(const uint8_t *buffer, size_t len) {
   if (len > tx_fifo_level_())
     return;
   parent_->write_sc16is752_register_(SC16IS752_REG_RHR, channel_, buffer, len);
 }
 
-/// **IMPLEMENTATION DETAILS** - This function is the worse of all UART functions !!! To me it
-/// does not make sense at all and I have no idea how someone could use it.  If we
-/// refer to Serial.flush() in Arduino we have:
+/// **IMPLEMENTATION DETAILS** - This function is the worse of all UART functions !!!
+/// To me this function does not make sense at all and I have no idea how someone
+/// could take benifit of it.  If we refer to Serial.flush() in Arduino we have:
 /// ** Waits for the transmission of outgoing serial data to complete. (Prior to Arduino 1.0,
-/// this instead removed any buffered incoming serial data.) **
-/// While flushing an input fifo make sense, flushing an output fifo make no sense!
+/// this instead removed any buffered incoming serial data.) **.
+///
+/// While flushing an input fifo make sense, flushing an output fifo make **no sense**!
 /// Therefore I do nothing
 void SC16IS752Channel::flush() {
   ESP_LOGE(TAG, "This functions is not implemented");
@@ -230,8 +230,7 @@ void SC16IS752Channel::fifo_enable_(bool enable) {
 
 void SC16IS752Channel::set_line_param_() {
   auto lcr = read_uart_register_(SC16IS752_REG_LCR);
-  lcr &= 0xC0;  // Clear the lower six bit of LCR (LCR[0] to LCR[5]
-  // data bits
+  lcr &= 0xC0;           // Clear the lower six bit of LCR (LCR[0] to LCR[5]) data bits
   switch (data_bits_) {  // data length settings
     case 5:
       break;
@@ -250,7 +249,7 @@ void SC16IS752Channel::set_line_param_() {
     lcr |= 0x04;
   }
   // parity
-  switch (parity_) {              // parity selection length settings
+  switch (parity_) {              // parity selection settings
     case UART_CONFIG_PARITY_ODD:  // odd parity
       lcr |= 0x08;
       break;
@@ -278,7 +277,7 @@ void SC16IS752Channel::set_baudrate_() {
   uint32_t lower_part = baudrate_ * 16;
   // uint32_t max_baudrate = upper_part / 16;
 
-  if (lower_part > upper_part) {
+  if (lower_part > upper_part) {  // sanity check
     ESP_LOGE(TAG, "The requested baudrate (%d) is too high - fallback to 19200", baudrate_);
     baudrate_ = 19200;
     lower_part = baudrate_ * 16;
@@ -286,20 +285,18 @@ void SC16IS752Channel::set_baudrate_() {
 
   // we compute and round up the divisor
   uint32_t divisor = ceil((double) upper_part / (double) lower_part);
-
   ESP_LOGVV(TAG, "crystal=%d baudrate=%d pre_scaler=%d divisor=%d", parent_->crystal_, baudrate_, pre_scaler, divisor);
 
   auto lcr = read_uart_register_(SC16IS752_REG_LCR);
-  lcr |= 0x80;  // set LCR[7] enable special registers
+  lcr |= 0x80;  // set LCR[7] to enable special registers
   write_uart_register_(SC16IS752_REG_LCR, (uint8_t) lcr);
   write_uart_register_(SC16IS752_REG_DLL, (uint8_t) divisor);
   write_uart_register_(SC16IS752_REG_DLH, (uint8_t) (divisor >> 8));
-  lcr &= 0x7F;  // reset LCR[7] disable special registers
+  lcr &= 0x7F;  // reset LCR[7] to disable special registers
   write_uart_register_(SC16IS752_REG_LCR, lcr);
 
-  uint32_t actual_baudrate = (upper_part / divisor) / 16;
   ESP_LOGCONFIG(TAG, "Crystal %d Requested baudrate %d - actual baudrate %d", parent_->crystal_, baudrate_,
-                actual_baudrate);
+                (upper_part / divisor) / 16);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
