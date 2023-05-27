@@ -109,7 +109,6 @@ class SC16IS752Component : public Component, public i2c::I2CDevice {
   /// @return the byte read from the register
   uint8_t read_io_register_(int reg_address);
 
-  i2c::ErrorCode read_sc16is752_register_(uint8_t reg_address, uint8_t channel, uint8_t *buffer, size_t len);
   /// @brief Use to write GPIO related register. Channel 0 is used as it is not significant
   /// @param reg_address the register address
   /// @param value the value to write
