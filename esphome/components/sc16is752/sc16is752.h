@@ -114,8 +114,6 @@ class SC16IS752Component : public Component, public i2c::I2CDevice {
   /// @param value the value to write
   void write_io_register_(int reg_address, uint8_t value);
 
-  bool check_model_();
-
   /// Helper function to read the value of a pin.
   bool read_pin_val_(uint8_t pin);
   /// Helper function to write the value of a pin.
