@@ -19,20 +19,20 @@ CODEOWNERS = ["@DrCoolZic"]
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["uart"]
 
-sc16is752_ns = cg.esphome_ns.namespace("sc16is752")
-SC16IS752Component = sc16is752_ns.class_(
-    "SC16IS752Component", cg.Component, i2c.I2CDevice
+sc16is75x_ns = cg.esphome_ns.namespace("sc16is75x")
+SC16IS75XComponent = sc16is75x_ns.class_(
+    "SC16IS75XComponent", cg.Component, i2c.I2CDevice
 )
-SC16IS752Channel = sc16is752_ns.class_(
-    "SC16IS752Channel", cg.Component, uart.UARTComponent
+SC16IS75XChannel = sc16is75x_ns.class_(
+    "SC16IS75XChannel", cg.Component, uart.UARTComponent
 )
-SC16IS752GPIOPin = sc16is752_ns.class_(
-    "SC16IS752GPIOPin", cg.GPIOPin, cg.Parented.template(SC16IS752Component)
+SC16IS75XGPIOPin = sc16is75x_ns.class_(
+    "SC16IS75XGPIOPin", cg.GPIOPin, cg.Parented.template(SC16IS75XComponent)
 )
 
-CONF_SC16IS752 = "sc16is752"
+CONF_SC16IS75X = "sc16is75x"
 MULTI_CONF = True
-UARTParityOptions = sc16is752_ns.enum("UARTParityOptions")
+UARTParityOptions = sc16is75x_ns.enum("UARTParityOptions")
 UART_PARITY_OPTIONS = {
     "NONE": UARTParityOptions.UART_CONFIG_PARITY_NONE,
     "EVEN": UARTParityOptions.UART_CONFIG_PARITY_EVEN,
@@ -42,10 +42,10 @@ CONF_STOP_BITS = "stop_bits"
 CONF_DATA_BITS = "data_bits"
 CONF_PARITY = "parity"
 
-SC16IS752ComponentModel = sc16is752_ns.enum("SC16IS752ComponentModel")
-SC16IS752_MODELS = {
-    "SC16IS750": SC16IS752ComponentModel.SC16IS750_MODEL,
-    "SC16IS752": SC16IS752ComponentModel.SC16IS752_MODEL,
+SC16IS75XComponentModel = sc16is75x_ns.enum("SC16IS75XComponentModel")
+SC16IS75X_MODELS = {
+    "SC16IS750": SC16IS75XComponentModel.SC16IS750_MODEL,
+    "SC16IS752": SC16IS75XComponentModel.SC16IS752_MODEL,
 }
 CONF_MODEL = "model"
 CONF_CRYSTAL = "crystal"
@@ -78,14 +78,14 @@ def post_validate(value):
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(SC16IS752Component),
+            cv.GenerateID(): cv.declare_id(SC16IS75XComponent),
             cv.Optional(CONF_MODEL, default="SC16IS752"): cv.enum(
-                SC16IS752_MODELS, upper=True
+                SC16IS75X_MODELS, upper=True
             ),
             cv.Optional(CONF_CRYSTAL): cv.int_,
             cv.Optional(CONF_UART, default=[]): cv.ensure_list(
                 {
-                    cv.Required(CONF_UART_ID): cv.declare_id(SC16IS752Channel),
+                    cv.Required(CONF_UART_ID): cv.declare_id(SC16IS75XChannel),
                     cv.Optional(CONF_CHANNEL): cv.int_range(min=0, max=1),
                     cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
                     cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
@@ -127,10 +127,10 @@ def validate_mode(value):
     return value
 
 
-SC16IS752_PIN_SCHEMA = cv.All(
+SC16IS75X_PIN_SCHEMA = cv.All(
     {
-        cv.GenerateID(): cv.declare_id(SC16IS752GPIOPin),
-        cv.Required(CONF_SC16IS752): cv.use_id(SC16IS752Component),
+        cv.GenerateID(): cv.declare_id(SC16IS75XGPIOPin),
+        cv.Required(CONF_SC16IS75X): cv.use_id(SC16IS75XComponent),
         cv.Required(CONF_NUMBER): cv.int_range(min=0, max=8),
         cv.Optional(CONF_MODE, default={}): cv.All(
             {
@@ -144,10 +144,10 @@ SC16IS752_PIN_SCHEMA = cv.All(
 )
 
 
-@pins.PIN_SCHEMA_REGISTRY.register("sc16is752", SC16IS752_PIN_SCHEMA)
-async def sc16is752_pin_to_code(config):
+@pins.PIN_SCHEMA_REGISTRY.register("sc16is75x", SC16IS75X_PIN_SCHEMA)
+async def sc16is75x_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    parent = await cg.get_variable(config[CONF_SC16IS752])
+    parent = await cg.get_variable(config[CONF_SC16IS75X])
     cg.add(var.set_parent(parent))
 
     num = config[CONF_NUMBER]

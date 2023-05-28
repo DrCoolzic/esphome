@@ -1,6 +1,6 @@
 /// @file sc16s752.h
 /// @author @DrCoolzic
-/// @brief sc16is752 interface
+/// @brief sc16is75x interface
 
 #pragma once
 
@@ -9,37 +9,37 @@
 #include "esphome/components/uart/uart.h"
 
 namespace esphome {
-namespace sc16is752 {
+namespace sc16is75x {
 
-// General sc16is752 registers
-const uint8_t SC16IS752_REG_RHR = 0x00;    // receive holding register (r) with a 64-bytes FIFO
-const uint8_t SC16IS752_REG_THR = 0X00;    // transmit holding register (w) with a 64-bytes FIFO
-const uint8_t SC16IS752_REG_IER = 0X01;    // interrupt enable register (r/w)
-const uint8_t SC16IS752_REG_IIR = 0X02;    // interrupt identification register (r)
-const uint8_t SC16IS752_REG_FCR = 0X02;    // FIFO control register (w)
-const uint8_t SC16IS752_REG_LCR = 0X03;    // line control register (r/w)
-const uint8_t SC16IS752_REG_MCR = 0X04;    // modem control register (r/w) - only when EFR[4]=1
-const uint8_t SC16IS752_REG_LSR = 0X05;    // line status register (ro)
-const uint8_t SC16IS752_REG_MSR = 0X06;    // modem status register (ro)
-const uint8_t SC16IS752_REG_TCR = 0X06;    // transmission control register (r/w) when EFR[4]=1 & MRC[2]=1
-const uint8_t SC16IS752_REG_SPR = 0X07;    // scratchpad register (r/w)
-const uint8_t SC16IS752_REG_TLR = 0X07;    // trigger level register (r/w) when EFR[4]=1 & MRC[2]=1
-const uint8_t SC16IS752_REG_TXLVL = 0X08;  // transmit FIFO level register (ro)
-const uint8_t SC16IS752_REG_RXLVL = 0X09;  // receive FIFO level register (ro)
-const uint8_t SC16IS752_REG_IODIR = 0X0A;  // I/O pin direction register (r/w)
-const uint8_t SC16IS752_REG_IOPIN = 0X0B;  // I/O pin state register (r/w)
-const uint8_t SC16IS752_REG_IOINT = 0X0C;  // I/O interrupt enable register (r/w)
-const uint8_t SC16IS752_REG_IOCTR = 0X0E;  // I/O pin control register (r/w)
-const uint8_t SC16IS752_REG_EFCR = 0X0F;   // extra features register (r/w)
+// General sc16is75x registers
+const uint8_t SC16IS75X_REG_RHR = 0x00;    // receive holding register (r) with a 64-bytes FIFO
+const uint8_t SC16IS75X_REG_THR = 0X00;    // transmit holding register (w) with a 64-bytes FIFO
+const uint8_t SC16IS75X_REG_IER = 0X01;    // interrupt enable register (r/w)
+const uint8_t SC16IS75X_REG_IIR = 0X02;    // interrupt identification register (r)
+const uint8_t SC16IS75X_REG_FCR = 0X02;    // FIFO control register (w)
+const uint8_t SC16IS75X_REG_LCR = 0X03;    // line control register (r/w)
+const uint8_t SC16IS75X_REG_MCR = 0X04;    // modem control register (r/w) - only when EFR[4]=1
+const uint8_t SC16IS75X_REG_LSR = 0X05;    // line status register (ro)
+const uint8_t SC16IS75X_REG_MSR = 0X06;    // modem status register (ro)
+const uint8_t SC16IS75X_REG_TCR = 0X06;    // transmission control register (r/w) when EFR[4]=1 & MRC[2]=1
+const uint8_t SC16IS75X_REG_SPR = 0X07;    // scratchpad register (r/w)
+const uint8_t SC16IS75X_REG_TLR = 0X07;    // trigger level register (r/w) when EFR[4]=1 & MRC[2]=1
+const uint8_t SC16IS75X_REG_TXLVL = 0X08;  // transmit FIFO level register (ro)
+const uint8_t SC16IS75X_REG_RXLVL = 0X09;  // receive FIFO level register (ro)
+const uint8_t SC16IS75X_REG_IODIR = 0X0A;  // I/O pin direction register (r/w)
+const uint8_t SC16IS75X_REG_IOPIN = 0X0B;  // I/O pin state register (r/w)
+const uint8_t SC16IS75X_REG_IOINT = 0X0C;  // I/O interrupt enable register (r/w)
+const uint8_t SC16IS75X_REG_IOCTR = 0X0E;  // I/O pin control register (r/w)
+const uint8_t SC16IS75X_REG_EFCR = 0X0F;   // extra features register (r/w)
 // Special registers only if LCR[7] == 1 & LCR != 0xBF
-const uint8_t SC16IS752_REG_DLL = 0x00;  // divisor latch lsb (r/w) only if LCR[7]=1 & LCR != 0xBF
-const uint8_t SC16IS752_REG_DLH = 0X01;  // divisor latch msb (r/w) only if LCR[7]=1 & LCR != 0xBF
+const uint8_t SC16IS75X_REG_DLL = 0x00;  // divisor latch lsb (r/w) only if LCR[7]=1 & LCR != 0xBF
+const uint8_t SC16IS75X_REG_DLH = 0X01;  // divisor latch msb (r/w) only if LCR[7]=1 & LCR != 0xBF
 // Enhanced registers only if LCR == 0xBF
-const uint8_t SC16IS752_REG_EFR = 0X02;    // enhanced features register only if LCR=0xBF (1011 1111)
-const uint8_t SC16IS752_REG_XON1 = 0X04;   // Xon1 word (rw) only if LCR=0xBF (1011 1111)
-const uint8_t SC16IS752_REG_XON2 = 0X05;   // Xon2 word (rw) only if LCR=0xBF (1011 1111)
-const uint8_t SC16IS752_REG_XOFF1 = 0X06;  // Xoff1 word (rw) only if LCR=0xBF (1011 1111)
-const uint8_t SC16IS752_REG_XOFF2 = 0X07;  // Xoff2 word (rw) only if LCR=0xBF (1011 1111)
+const uint8_t SC16IS75X_REG_EFR = 0X02;    // enhanced features register only if LCR=0xBF (1011 1111)
+const uint8_t SC16IS75X_REG_XON1 = 0X04;   // Xon1 word (rw) only if LCR=0xBF (1011 1111)
+const uint8_t SC16IS75X_REG_XON2 = 0X05;   // Xon2 word (rw) only if LCR=0xBF (1011 1111)
+const uint8_t SC16IS75X_REG_XOFF1 = 0X06;  // Xoff1 word (rw) only if LCR=0xBF (1011 1111)
+const uint8_t SC16IS75X_REG_XOFF2 = 0X07;  // Xoff2 word (rw) only if LCR=0xBF (1011 1111)
 
 // for debug messages ...
 static const char *write_reg_to_str[] = {"THR",   "IER",   "FCR",   "LCR",   "MCR",   "LSR",   "TCR", "SPR",
@@ -55,11 +55,11 @@ enum UARTParityOptions {
 };
 
 /// @brief supported chip models
-enum SC16IS752ComponentModel { SC16IS750_MODEL, SC16IS752_MODEL };
-class SC16IS752Channel;  // forward declaration
+enum SC16IS75XComponentModel { SC16IS750_MODEL, SC16IS752_MODEL };
+class SC16IS75XChannel;  // forward declaration
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief This class describes a SC16IS752 I²C component.
+/// @brief This class describes a SC16IS75X I²C component.
 ///
 /// This class derives from two @ref esphome classes:
 /// - the @ref Component class. From this class we redefine the @ref Component::setup(),
@@ -67,13 +67,13 @@ class SC16IS752Channel;  // forward declaration
 /// - the @ref i2c::I2CDevice class. From which we use some methods
 ///
 /// We have two related class :
-/// - the @ref SC16IS752Channel class that takes cares of the UART related functions
-/// - the @ref SC16IS752GPIOPin class
+/// - the @ref SC16IS75XChannel class that takes cares of the UART related functions
+/// - the @ref SC16IS75XGPIOPin class
 /// that takes care of the details for the GPIO pins of the component.
 ///////////////////////////////////////////////////////////////////////////////
-class SC16IS752Component : public Component, public i2c::I2CDevice {
+class SC16IS75XComponent : public Component, public i2c::I2CDevice {
  public:
-  void set_model(SC16IS752ComponentModel model) { model_ = model; }
+  void set_model(SC16IS75XComponentModel model) { model_ = model; }
   void set_crystal(uint32_t crystal) { crystal_ = crystal; }
   //
   //  override Component functions
@@ -85,8 +85,8 @@ class SC16IS752Component : public Component, public i2c::I2CDevice {
 
  protected:
   // we give access to protected objects to our friends :)
-  friend class SC16IS752Channel;
-  friend class SC16IS752GPIOPin;
+  friend class SC16IS75XChannel;
+  friend class SC16IS75XGPIOPin;
 
   /// @brief All write calls to I2C registers are funeled through this function
   /// @param reg_address the register address
@@ -94,7 +94,7 @@ class SC16IS752Component : public Component, public i2c::I2CDevice {
   /// @param buffer pointer to the buffer
   /// @param len number of bytes to write
   /// @return the i2c error codes
-  i2c::ErrorCode write_sc16is752_register_(uint8_t reg_address, uint8_t channel, const uint8_t *buffer, size_t len);
+  i2c::ErrorCode write_sc16is75x_register_(uint8_t reg_address, uint8_t channel, const uint8_t *buffer, size_t len);
 
   /// @brief All read calls to I2C registers are funeled through this function
   /// @param reg_address the register address
@@ -102,7 +102,7 @@ class SC16IS752Component : public Component, public i2c::I2CDevice {
   /// @param buffer pointer to the buffer
   /// @param len number of bytes to read
   /// @return the i2c error codes
-  i2c::ErrorCode read_sc16is752_register_(uint8_t reg_address, uint8_t channel, uint8_t *buffer, size_t len);
+  i2c::ErrorCode read_sc16is75x_register_(uint8_t reg_address, uint8_t channel, uint8_t *buffer, size_t len);
 
   /// @brief Use to read GPIO related register. Channel 0 is used as it is not significant
   /// @param reg_address the register address
@@ -131,17 +131,17 @@ class SC16IS752Component : public Component, public i2c::I2CDevice {
   /// The state of the actual input pin states - 1 means HIGH, 0 means LOW
   uint8_t input_state_{0x00};
   /// @brief The precise model of the component
-  SC16IS752ComponentModel model_;
+  SC16IS75XComponentModel model_;
   /// crystal default on SC16IS750 => 14.7456MHz - on SC16IS752 => 3.072MHz
   uint32_t crystal_;
   /// one byte buffer used for most register operation to avoid allocation
   uint8_t buffer_;
   /// @brief the list of UART children
-  std::vector<SC16IS752Channel *> children{};
+  std::vector<SC16IS75XChannel *> children{};
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Describes the UART part of a SC16IS752 I²C component.
+/// @brief Describes the UART part of a SC16IS75X I²C component.
 ///
 /// This class derives from the @ref esphome @ref uart::UARTComponent class.
 /// As the @ref uart::UARTComponent is a pure virtual class we need to
@@ -149,9 +149,9 @@ class SC16IS752Component : public Component, public i2c::I2CDevice {
 /// @ref uart::UARTComponent::read_array(), @ref uart::UARTComponent::peek_byte(),
 /// @ref uart::UARTComponent::available(), @ref uart::UARTComponent::flush().
 ///////////////////////////////////////////////////////////////////////////////
-class SC16IS752Channel : public uart::UARTComponent {
+class SC16IS75XChannel : public uart::UARTComponent {
  public:
-  void set_parent(SC16IS752Component *parent) {
+  void set_parent(SC16IS75XComponent *parent) {
     parent_ = parent;
     parent_->children.push_back(this);
   }
@@ -194,7 +194,7 @@ class SC16IS752Channel : public uart::UARTComponent {
   void flush() override;
 
  protected:
-  friend class SC16IS752Component;
+  friend class SC16IS75XComponent;
   /// @brief cannot happen with our component!
   void check_logger_conflict() override {}
 
@@ -203,10 +203,10 @@ class SC16IS752Channel : public uart::UARTComponent {
   void set_line_param_();
   void set_baudrate_();
   void fifo_enable_(bool enable = true);
-  inline int rx_fifo_level_() { return read_uart_register_(SC16IS752_REG_RXLVL); }
-  inline int tx_fifo_level_() { return read_uart_register_(SC16IS752_REG_TXLVL); }
+  inline int rx_fifo_level_() { return read_uart_register_(SC16IS75X_REG_RXLVL); }
+  inline int tx_fifo_level_() { return read_uart_register_(SC16IS75X_REG_TXLVL); }
 
-  SC16IS752Component *parent_;
+  SC16IS75XComponent *parent_;
   uint8_t channel_;
   uint32_t baudrate_;
   uint8_t stop_bits_;
@@ -219,9 +219,9 @@ class SC16IS752Channel : public uart::UARTComponent {
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Helper class to expose a SC16IS752 pin as an internal input GPIO pin.
+/// @brief Helper class to expose a SC16IS75X pin as an internal input GPIO pin.
 ///////////////////////////////////////////////////////////////////////////////
-class SC16IS752GPIOPin : public GPIOPin {
+class SC16IS75XGPIOPin : public GPIOPin {
  public:
   //
   // overriden GPIOPin methods
@@ -232,17 +232,17 @@ class SC16IS752GPIOPin : public GPIOPin {
   void digital_write(bool value) override;
   std::string dump_summary() const override;
 
-  void set_parent(SC16IS752Component *parent) { parent_ = parent; }
+  void set_parent(SC16IS75XComponent *parent) { parent_ = parent; }
   void set_pin(uint8_t pin) { pin_ = pin; }
   void set_inverted(bool inverted) { inverted_ = inverted; }
   void set_flags(gpio::Flags flags) { flags_ = flags; }
 
  protected:
-  SC16IS752Component *parent_;
+  SC16IS75XComponent *parent_;
   uint8_t pin_;
   bool inverted_;
   gpio::Flags flags_;
 };
 
-}  // namespace sc16is752
+}  // namespace sc16is75x
 }  // namespace esphome
