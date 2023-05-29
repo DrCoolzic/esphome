@@ -32,24 +32,18 @@ SC16IS75XGPIOPin = sc16is75x_ns.class_(
 
 CONF_SC16IS75X = "sc16is75x"
 MULTI_CONF = True
-UARTParityOptions = sc16is75x_ns.enum("UARTParityOptions")
-UART_PARITY_OPTIONS = {
-    "NONE": UARTParityOptions.UART_CONFIG_PARITY_NONE,
-    "EVEN": UARTParityOptions.UART_CONFIG_PARITY_EVEN,
-    "ODD": UARTParityOptions.UART_CONFIG_PARITY_ODD,
-}
 CONF_STOP_BITS = "stop_bits"
 CONF_DATA_BITS = "data_bits"
 CONF_PARITY = "parity"
+CONF_MODEL = "model"
+CONF_CRYSTAL = "crystal"
+CONF_UART = "uart"
 
 SC16IS75XComponentModel = sc16is75x_ns.enum("SC16IS75XComponentModel")
 SC16IS75X_MODELS = {
     "SC16IS750": SC16IS75XComponentModel.SC16IS750_MODEL,
     "SC16IS752": SC16IS75XComponentModel.SC16IS752_MODEL,
 }
-CONF_MODEL = "model"
-CONF_CRYSTAL = "crystal"
-CONF_UART = "uart"
 
 
 def post_validate(value):
@@ -91,7 +85,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
                     cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(min=5, max=8),
                     cv.Optional(CONF_PARITY, default="NONE"): cv.enum(
-                        UART_PARITY_OPTIONS, upper=True
+                        uart.UART_PARITY_OPTIONS, upper=True
                     ),
                 }
             ),

@@ -12,40 +12,40 @@ namespace esphome {
 namespace sc16is75x {
 
 // General sc16is75x registers
-const uint8_t SC16IS75X_REG_RHR = 0x00;    // receive holding register (r) with a 64-bytes FIFO
-const uint8_t SC16IS75X_REG_THR = 0X00;    // transmit holding register (w) with a 64-bytes FIFO
-const uint8_t SC16IS75X_REG_IER = 0X01;    // interrupt enable register (r/w)
-const uint8_t SC16IS75X_REG_IIR = 0X02;    // interrupt identification register (r)
-const uint8_t SC16IS75X_REG_FCR = 0X02;    // FIFO control register (w)
-const uint8_t SC16IS75X_REG_LCR = 0X03;    // line control register (r/w)
-const uint8_t SC16IS75X_REG_MCR = 0X04;    // modem control register (r/w) - only when EFR[4]=1
-const uint8_t SC16IS75X_REG_LSR = 0X05;    // line status register (ro)
-const uint8_t SC16IS75X_REG_MSR = 0X06;    // modem status register (ro)
-const uint8_t SC16IS75X_REG_TCR = 0X06;    // transmission control register (r/w) when EFR[4]=1 & MRC[2]=1
-const uint8_t SC16IS75X_REG_SPR = 0X07;    // scratchpad register (r/w)
-const uint8_t SC16IS75X_REG_TLR = 0X07;    // trigger level register (r/w) when EFR[4]=1 & MRC[2]=1
-const uint8_t SC16IS75X_REG_TXLVL = 0X08;  // transmit FIFO level register (ro)
-const uint8_t SC16IS75X_REG_RXLVL = 0X09;  // receive FIFO level register (ro)
-const uint8_t SC16IS75X_REG_IODIR = 0X0A;  // I/O pin direction register (r/w)
-const uint8_t SC16IS75X_REG_IOPIN = 0X0B;  // I/O pin state register (r/w)
-const uint8_t SC16IS75X_REG_IOINT = 0X0C;  // I/O interrupt enable register (r/w)
-const uint8_t SC16IS75X_REG_IOCTR = 0X0E;  // I/O pin control register (r/w)
-const uint8_t SC16IS75X_REG_EFCR = 0X0F;   // extra features register (r/w)
+const uint8_t SC16IS75X_REG_RHR = 0x00;  // receive holding register (r) with a 64-bytes FIFO
+const uint8_t SC16IS75X_REG_THR = 0X00;  // transmit holding register (w) with a 64-bytes FIFO
+const uint8_t SC16IS75X_REG_IER = 0X01;  // interrupt enable register (r/w)
+const uint8_t SC16IS75X_REG_IIR = 0X02;  // interrupt identification register (r)
+const uint8_t SC16IS75X_REG_FCR = 0X02;  // FIFO control register (w)
+const uint8_t SC16IS75X_REG_LCR = 0X03;  // line control register (r/w)
+const uint8_t SC16IS75X_REG_MCR = 0X04;  // modem control register (r/w) - only when EFR[4]=1
+const uint8_t SC16IS75X_REG_LSR = 0X05;  // line status register (ro)
+const uint8_t SC16IS75X_REG_MSR = 0X06;  // modem status register (ro)
+const uint8_t SC16IS75X_REG_TCR = 0X06;  // transmission control register (r/w) when EFR[4]=1 & MRC[2]=1
+const uint8_t SC16IS75X_REG_SPR = 0X07;  // scratchpad register (r/w)
+const uint8_t SC16IS75X_REG_TLR = 0X07;  // trigger level register (r/w) when EFR[4]=1 & MRC[2]=1
+const uint8_t SC16IS75X_REG_TXF = 0X08;  // transmit FIFO level register (ro)
+const uint8_t SC16IS75X_REG_RXF = 0X09;  // receive FIFO level register (ro)
+const uint8_t SC16IS75X_REG_IOD = 0X0A;  // I/O pin direction register (r/w)
+const uint8_t SC16IS75X_REG_IOP = 0X0B;  // I/O pin state register (r/w)
+const uint8_t SC16IS75X_REG_IOI = 0X0C;  // I/O interrupt enable register (r/w)
+const uint8_t SC16IS75X_REG_IOC = 0X0E;  // I/O pin control register (r/w)
+const uint8_t SC16IS75X_REG_XFR = 0X0F;  // extra features register (r/w)
 // Special registers only if LCR[7] == 1 & LCR != 0xBF
 const uint8_t SC16IS75X_REG_DLL = 0x00;  // divisor latch lsb (r/w) only if LCR[7]=1 & LCR != 0xBF
 const uint8_t SC16IS75X_REG_DLH = 0X01;  // divisor latch msb (r/w) only if LCR[7]=1 & LCR != 0xBF
 // Enhanced registers only if LCR == 0xBF
-const uint8_t SC16IS75X_REG_EFR = 0X02;    // enhanced features register only if LCR=0xBF (1011 1111)
-const uint8_t SC16IS75X_REG_XON1 = 0X04;   // Xon1 word (rw) only if LCR=0xBF (1011 1111)
-const uint8_t SC16IS75X_REG_XON2 = 0X05;   // Xon2 word (rw) only if LCR=0xBF (1011 1111)
-const uint8_t SC16IS75X_REG_XOFF1 = 0X06;  // Xoff1 word (rw) only if LCR=0xBF (1011 1111)
-const uint8_t SC16IS75X_REG_XOFF2 = 0X07;  // Xoff2 word (rw) only if LCR=0xBF (1011 1111)
+const uint8_t SC16IS75X_REG_EFR = 0X02;  // enhanced features register only if LCR=0xBF (1011 1111)
+const uint8_t SC16IS75X_REG_XO1 = 0X04;  // Xon1 word (rw) only if LCR=0xBF (1011 1111)
+const uint8_t SC16IS75X_REG_XO2 = 0X05;  // Xon2 word (rw) only if LCR=0xBF (1011 1111)
+const uint8_t SC16IS75X_REG_XF1 = 0X06;  // Xoff1 word (rw) only if LCR=0xBF (1011 1111)
+const uint8_t SC16IS75X_REG_XF2 = 0X07;  // Xoff2 word (rw) only if LCR=0xBF (1011 1111)
 
 // for debug messages ...
-static const char *write_reg_to_str[] = {"THR",   "IER",   "FCR",   "LCR",   "MCR",   "LSR",   "TCR", "SPR",
-                                         "_INV_", "_INV_", "IODIR", "IOPIN", "IOINT", "IOCTR", "EFCR"};
-static const char *read_reg_to_str[] = {"RHR",  "IER",  "IIR",   "LCR",   "MCR",   "LSR",   "MSR", "SPR",
-                                        "TXLV", "RXLV", "IODIR", "IOPIN", "IOINT", "IOCTR", "EFCR"};
+static const char *write_reg_to_str[] = {"THR",   "IER",   "FCR", "LCR", "MCR", "LSR", "TCR", "SPR",
+                                         "_INV_", "_INV_", "IOD", "IO",  "IOI", "IOC", "EFR"};
+static const char *read_reg_to_str[] = {"RHR", "IER",  "IIR", "LCR", "MCR", "LSR", "MSR", "SPR",
+                                        "TXF", "RXF", "IOD", "IOP", "IOI", "IOC", "EFR"};
 
 /// @brief Parity options
 enum UARTParityOptions {
@@ -62,19 +62,20 @@ class SC16IS75XChannel;  // forward declaration
 /// @brief This class describes a SC16IS75X I²C component.
 ///
 /// This class derives from two @ref esphome classes:
-/// - the @ref Component class. From this class we redefine the @ref Component::setup(),
-/// @ref Component::dump_config() and @ref Component::get_setup_priority() methods
-/// - the @ref i2c::I2CDevice class. From which we use some methods
+/// - The @ref Virtual Component class. From this class we redefine the @ref Component::setup(),
+///   @ref Component::dump_config() and @ref Component::get_setup_priority() methods
+/// - The @ref i2c::I2CDevice class. From which we use some methods
 ///
 /// We have two related class :
-/// - the @ref SC16IS75XChannel class that takes cares of the UART related functions
-/// - the @ref SC16IS75XGPIOPin class
-/// that takes care of the details for the GPIO pins of the component.
+/// - The @ref SC16IS75XChannel class that takes cares of the UART related functions
+/// - The @ref SC16IS75XGPIOPin class
+///   that takes care of the details for the GPIO pins of the component.
 ///////////////////////////////////////////////////////////////////////////////
 class SC16IS75XComponent : public Component, public i2c::I2CDevice {
  public:
   void set_model(SC16IS75XComponentModel model) { model_ = model; }
   void set_crystal(uint32_t crystal) { crystal_ = crystal; }
+
   //
   //  override Component functions
   //
@@ -88,17 +89,17 @@ class SC16IS75XComponent : public Component, public i2c::I2CDevice {
   friend class SC16IS75XChannel;
   friend class SC16IS75XGPIOPin;
 
-  /// @brief All write calls to I2C registers are funeled through this function
+  /// @brief All write calls to I2C registers are funneled through this function
   /// @param reg_address the register address
-  /// @param channel the channel number. Olny significant for UART registers
+  /// @param channel the channel number. Only significant for UART registers
   /// @param buffer pointer to the buffer
   /// @param len number of bytes to write
   /// @return the i2c error codes
   i2c::ErrorCode write_sc16is75x_register_(uint8_t reg_address, uint8_t channel, const uint8_t *buffer, size_t len);
 
-  /// @brief All read calls to I2C registers are funeled through this function
+  /// @brief All read calls to I2C registers are funneled through this function
   /// @param reg_address the register address
-  /// @param channel the channel number. Olny significant for UART registers
+  /// @param channel the channel number. Only significant for UART registers
   /// @param buffer pointer to the buffer
   /// @param len number of bytes to read
   /// @return the i2c error codes
@@ -131,11 +132,11 @@ class SC16IS75XComponent : public Component, public i2c::I2CDevice {
   /// The state of the actual input pin states - 1 means HIGH, 0 means LOW
   uint8_t input_state_{0x00};
   /// @brief The precise model of the component
-  SC16IS75XComponentModel model_;
+  SC16IS75XComponentModel model_{SC16IS752_MODEL};
   /// crystal default on SC16IS750 => 14.7456MHz - on SC16IS752 => 3.072MHz
-  uint32_t crystal_;
+  uint32_t crystal_{3072000};
   /// one byte buffer used for most register operation to avoid allocation
-  uint8_t buffer_;
+  uint8_t buffer_{0};
   /// @brief the list of UART children
   std::vector<SC16IS75XChannel *> children{};
 };
@@ -156,41 +157,46 @@ class SC16IS75XChannel : public uart::UARTComponent {
     parent_->children.push_back(this);
   }
   void set_channel(uint8_t channel) { channel_ = channel; }
-  void set_baud_rate(uint32_t baudrate) { baudrate_ = baudrate; }
-  void set_stop_bits(int stop_bits) { stop_bits_ = stop_bits; }
-  void set_data_bits(int data_bits) { data_bits_ = data_bits; }
-  void set_parity(UARTParityOptions parity) { parity_ = parity; }
+
+  // void set_baud_rate(uint32_t baudrate) { baudrate_ = baudrate; }
+  // uint32_t get_baud_rate() const  { return baud_rate_; }
+  // void set_stop_bits(uint8_t stop_bits) { stop_bits_ = stop_bits; }
+  // uint8_t get_stop_bits() const { return this->stop_bits_; }
+  // void set_data_bits(uint8_t data_bits) { data_bits_ = data_bits; }
+  // uint8_t get_data_bits() const { return this->data_bits_; }
+  // void set_parity(UARTParityOptions parity) { parity_ = parity; }
+  // UARTParityOptions get_parity() const { return this->parity_; }
 
   //
   // overriden UARTComponent functions
   //
 
   /// @brief Write a specified number of bytes from a buffer to a serial port
-  /// for more detail refer to implementation
+  /// for more detail refer to implementation refer to @ref page_sc1675x_
   /// @param buffer pointer to the buffer
   /// @param len number of bytes to write
   void write_array(const uint8_t *buffer, size_t len) override;
 
   /// @brief Read a specified number of bytes from a serial port to an buffer
-  /// for more detail refer to implementation
+  /// for more detail refer to implementation refer to @ref page_sc1675x_
   /// @param buffer pointer to the buffer
   /// @param len number of bytes to read
   /// @return true if succeed false otherwise
   bool read_array(uint8_t *buffer, size_t len) override;
 
   /// @brief Read next byte available from serial buffer without removing it
-  /// for more detail refer to implementation
+  /// for more detail refer to implementation refer to @ref page_sc1675x_
   /// @param buffer pointer to the byte
   /// @return true if succeed false otherwise
   bool peek_byte(uint8_t *buffer) override;
 
-  /// @brief Get the number of bytes available for reading from the serial port.
-  /// for more detail refer to implementation
+  /// @brief Return the number of bytes available for reading from the serial port.
+  /// for more detail refer to implementation refer to @ref page_sc1675x_
   /// @return the number of bytes available in the fifo
   int available() override { return rx_fifo_level_(); }
 
-  /// @brief do nothing!
-  /// supposed to clear the buffer output **once all outgoing characters have been sent**. ???
+  /// @brief Flush the input and output fifo
+  /// for more detail refer to implementation refer to @ref page_sc1675x_
   void flush() override;
 
  protected:
@@ -203,19 +209,19 @@ class SC16IS75XChannel : public uart::UARTComponent {
   void set_line_param_();
   void set_baudrate_();
   void fifo_enable_(bool enable = true);
-  inline int rx_fifo_level_() { return read_uart_register_(SC16IS75X_REG_RXLVL); }
-  inline int tx_fifo_level_() { return read_uart_register_(SC16IS75X_REG_TXLVL); }
+  inline int rx_fifo_level_() { return read_uart_register_(SC16IS75X_REG_RXF); }
+  inline int tx_fifo_level_() { return read_uart_register_(SC16IS75X_REG_TXF); }
 
   SC16IS75XComponent *parent_;
   uint8_t channel_;
-  uint32_t baudrate_;
-  uint8_t stop_bits_;
-  uint8_t data_bits_;
-  UARTParityOptions parity_;
+  // uint32_t baudrate_;
+  // uint8_t stop_bits_;
+  // uint8_t data_bits_;
+  // UARTParityOptions parity_;
   struct {
     uint8_t byte;
     bool empty{true};
-  } peek_;
+  } peek_byte_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -223,9 +229,11 @@ class SC16IS75XChannel : public uart::UARTComponent {
 ///////////////////////////////////////////////////////////////////////////////
 class SC16IS75XGPIOPin : public GPIOPin {
  public:
+
   //
   // overriden GPIOPin methods
   //
+  
   void setup() override;
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
