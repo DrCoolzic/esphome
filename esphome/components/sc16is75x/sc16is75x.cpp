@@ -1,4 +1,4 @@
-/// @file sc16s752.cpp
+/// @file sc16s75x.cpp
 /// @author @DrCoolzic
 /// @brief sc16is75x implementation
 
@@ -18,79 +18,88 @@ This class describes a SC16IS75X I²C component. It derives from two @ref esphom
 - The @ref Virtual Component class. From this class we redefine the @ref Component::setup(),
   @ref Component::dump_config() and @ref Component::get_setup_priority() methods
 - The @ref i2c::I2CDevice class. From which we use some methods
+
 We have two related class :
 - The @ref SC16IS75XChannel class that takes cares of the UART related functions
 - The @ref SC16IS75XGPIOPin class
   that takes care of the details for the GPIO pins of the component.
 
-All access to the i2c::I2CDevice class methods are done through two functions:
-- The SC16IS75XComponent::read_sc16is75x_register_() and the
-SC16IS75XComponent::write_sc16is75x_register_().
-Maximum checks are performs at this level and other helper methods are available for io
-and for uart.
+All call to the i2c::I2CDevice register read and write are funneled through two functions:
+- The SC16IS75XComponent::read_sc16is75x_register_() and
+- The SC16IS75XComponent::write_sc16is75x_register_().
+
+Maximum checks/debug tests are performs in these two functions and benifits
+to the other helper methods available for io and uart.
 
   @section sc16is75x_uart_ SC16IS75XChannel (UART) class
 Unfortunately I could not find any description of the uart::UARTDevice and
-the uart::UARTComponent classes of @ref ESPHome, but it seems that they take their
-roots in the Arduino library.\n
-Most of the \b Serial methods provided in the Arduino library are poorly
-defined and it seems that they have changed over time!\n
+the uart::UARTComponent classes of @ref ESPHome. But it seems that they take
+their roots from the Arduino library that I have therefore scrutinized.\n
+Most of the \b Serial methods provided in the Arduino library are **poorly
+defined** and it seems that their API has \b changed over time!\n
 The esphome::uart::UARTDevice class directly relates to the **Serial Class**
 in Arduino and they both derive from a **Stream class**.\n
-For compatibility reason many simpler method are made available in ESPHome
-but they very often loose the original status information ...\n
+On top of that and for compatibility reason many simpler helper method are made
+available in ESPHome but they often loose the original status information ...\n
 
-Therefore what I present here and what I have implemented represent
-the best possible way I could think of for these classes/methods.
+Therefore I have implemented what I believe is the best way I could think of for
+these classes/methods.
 
 @subsection ra_ss_ bool read_array(uint8_t *buffer, size_t len);
 
-This method receives 'len' characters from the uart into buffer:
-- it returns true if requested number of characters have been read,
-- it returns false if we have a timeout condition\n
-Note that the SC16IS75X UART has a 64 bytes internal buffer that we first read
-if character are available, then we wait for 100 ms for more characters.
-In the Arduino library it is mentioned that user should not ask for more than
-32 bytes with the read_byte() method. In a good usage of this method the caller
-should test if characters are available before calling this method.
+This method receives 'len' characters from the uart and transfer them into
+the buffer. It returns:
+- true if requested number of characters have been read,
+- false if we have a timeout condition\n
 
-Typical code could be:
+Note that the SC16IS75X UART has a 64 bytes internal buffer that we first read
+if character are available, then we wait for 100 ms for the requested total number
+of characters. In the Arduino library it is mentioned that the read_byte() method
+should not be called with \b len greater than 32 bytes.
+
+It is recommended to test the number of characters available in the fifo
+before calling this method.
+
+Typical usage could be:
 @code
   // ...
-  auto len = uart.available();
+  auto len = available();
   uint8_t buffer[64];
   if (len > 0) {
-    auto status = uart.read(&buffer, len)
+    auto status = read_array(&buffer, len)
   }
   // test status ...
 @endcode
 
 @subsection pb_ss_ bool peek_byte(uint8_t *buffer);
 
-This method returns the next byte (character) of incoming serial data without removing it from the internal serial
-buffer.
-- it returns true if a character have been read,
-- it returns false if we have a timeout condition.\n
+This method returns the next byte from incoming serial data without removing it
+from the internal fifo. It returns:
+- true if a character have been read,
+- it false if we have a timeout condition.\n
+
 For more information refer to @ref ra_ss_.
 
 @subsection wa_ss_ void write_array(uint8_t *buffer, size_t len);
 
-This method sends 'len' characters from the uart into buffer.
-Unfortunately compare to the Arduino equivalent this method
-does not return any value and therefore you have no possibility
-to know if the bytes has been transmitted correctly. To provide
-a reasonable implementation the method does the following:
+This method sends 'len' characters from the buffer to the serial line.
+Unfortunately (unlike to the Arduino equivalent) this method
+does not return any value and therefore there is no possibility
+to know if the bytes has been transmitted correctly.
+
+The current implementation does the following:
 - it fills the output fifo with the provided bytes.
 - it waits until either all the bytes have been sent or
   until a timeout of 100 ms has been reached.
 
 Note:
 - The internal buffer is 64 bytes long and therefore a request
-  to send more characters can result in characters lost.
-- Unfortunately neither Arduino neither ESPHome provide a method to
-  find how much space is available in the transmit buffer...
+  to send more characters is treated as an error.
+- Unfortunately neither Arduino nor ESPHome provide a method to
+  find how much space is available in the transmit buffer
+  before calling this function
 
-Typical code to call this method could be:
+Typical usage could be:
 @code
   // ...
   uint8_t buffer[64];
@@ -99,7 +108,7 @@ Typical code to call this method could be:
   len = ...
   while (len > 0) {
     send = max(len, 64);
-    uart.read(&buffer, send);
+    write_array(&buffer, send);
     len -= send;
   }
   // ...
@@ -111,10 +120,10 @@ It is used apparently to flush the output buffer by waiting for all
 characters to be sent? \n
 If we refer to Serial.flush() in Arduino we have:
   - Waits for the transmission of outgoing serial data to complete.
-  - Prior to Arduino 1.0, this instead removed any buffered incoming serial data.
+  - Prior to Arduino 1.0, this instead removed any buffered incoming serial data!
 
-While flushing an input fifo make sense, to me flushing an output fifo make very
-little sense! Therefore currently I clear both the input and output fifo!
+While flushing an input fifo make sense, flushing an output fifo is strange!
+The current implementation does the following: reset both the input and output fifo
 
 
 @section sc16is75x_gpio_ SC16IS75XGPIOPin (GPIO) class
@@ -128,13 +137,13 @@ little sense! Therefore currently I clear both the input and output fifo!
 
 i2c::ErrorCode SC16IS75XComponent::write_sc16is75x_register_(uint8_t reg_address, uint8_t channel,
                                                              const uint8_t *buffer, size_t len) {
-  auto sub = subaddress_(reg_address, channel);
+  auto sub = this->subaddress_(reg_address, channel);
   auto error = this->write_register(sub, buffer, len);
   if (error == i2c::ERROR_OK) {
     this->status_clear_warning();
     ESP_LOGVV(TAG, "write_sc16is75x_register_(%s, %X [0x%02X], b=%02X, l=%d): I2C code %d",
               write_reg_to_str[reg_address], channel, sub, *buffer, len, (int) error);
-  } else {
+  } else {  // error
     this->status_set_warning();
     ESP_LOGE(TAG, "write_sc16is75x_register_(%s, %X [0x%02X], b=%02X, l=%d): I2C code %d",
              write_reg_to_str[reg_address], channel, sub, *buffer, len, (int) error);
@@ -144,7 +153,7 @@ i2c::ErrorCode SC16IS75XComponent::write_sc16is75x_register_(uint8_t reg_address
 
 i2c::ErrorCode SC16IS75XComponent::read_sc16is75x_register_(uint8_t reg_address, uint8_t channel, uint8_t *buffer,
                                                             size_t len) {
-  auto sub = subaddress_(reg_address, channel);
+  auto sub = this->subaddress_(reg_address, channel);
   auto error = this->read_register(sub, buffer, len);
   if ((error == i2c::ERROR_OK)) {
     this->status_clear_warning();
@@ -158,31 +167,35 @@ i2c::ErrorCode SC16IS75XComponent::read_sc16is75x_register_(uint8_t reg_address,
   return error;
 }
 
-void SC16IS75XComponent::write_io_register_(int reg_address, uint8_t value) {
-  write_sc16is75x_register_(reg_address, 0, &value, 1);
+inline void SC16IS75XComponent::write_io_register_(int reg_address, uint8_t value) {
+  this->write_sc16is75x_register_(reg_address, 0, &value, 1);
 }
 
-uint8_t SC16IS75XComponent::read_io_register_(int reg_address) {
-  uint8_t buffer_ = 0;
-  read_sc16is75x_register_(reg_address, 0, &buffer_, 1);
+inline uint8_t SC16IS75XComponent::read_io_register_(int reg_address) {
+  uint8_t buffer_ = 0;  // clear before just for debug purpose
+  this->read_sc16is75x_register_(reg_address, 0, &buffer_, 1);
   return buffer_;
 }
 
 bool SC16IS75XComponent::read_pin_val_(uint8_t pin) {
   input_state_ = this->read_io_register_(SC16IS75X_REG_IOP);
+  ESP_LOGVV(TAG, "reading input pins state %s", i2s_(input_state_));
+  // TODO log when value changed from last call ?
   return this->input_state_ & (1 << pin);
 }
 
 void SC16IS75XComponent::write_pin_val_(uint8_t pin, bool value) {
   value ? this->output_state_ |= (1 << pin) : this->output_state_ &= ~(1 << pin);
+  ESP_LOGVV(TAG, "writing output pins state %s", i2s_(output_state_));
   this->write_io_register_(SC16IS75X_REG_IOP, this->output_state_);
 }
 
-void SC16IS75XComponent::set_pin_mode_(uint8_t pin, gpio::Flags flags) {
+void SC16IS75XComponent::set_pin_direction_(uint8_t pin, gpio::Flags flags) {
   if (flags == gpio::FLAG_INPUT)
     this->pin_config_ &= ~(1 << pin);  // clear bit (input mode)
   if (flags == gpio::FLAG_OUTPUT)
     this->pin_config_ |= 1 << pin;     // set bit (output mode)
+  ESP_LOGVV(TAG, "setting pins direction to %s", i2s_(pin_config_));
   this->write_io_register_(SC16IS75X_REG_IOD, ~this->pin_config_);
 }
 
@@ -200,7 +213,7 @@ void SC16IS75XComponent::setup() {
 
   // we can now setup our children
   for (auto i = 0; i < children.size(); i++) {
-    ESP_LOGCONFIG(TAG, "Setting up %s (%x) UART %d...", model_name, this, i);
+    ESP_LOGCONFIG(TAG, "  Setting up UART %d of %s...", i, model_name);
     children[i]->fifo_enable_(true);
     children[i]->set_baudrate_();
     children[i]->set_line_param_();
@@ -211,7 +224,6 @@ void SC16IS75XComponent::dump_config() {
   const char *model_name = (model_ == SC16IS750_MODEL) ? "SC16IS750" : "SC16IS752";
   ESP_LOGCONFIG(TAG, "%s (%x) with %d UARTs...", model_name, this, (int) children.size());
   ESP_LOGCONFIG(TAG, "  crystal %d", crystal_);
-  // TODO pins info ?
 
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
@@ -223,10 +235,7 @@ void SC16IS75XComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "    baudrate %d Bd", children[i]->baud_rate_);
     ESP_LOGCONFIG(TAG, "    data_bits %d", children[i]->data_bits_);
     ESP_LOGCONFIG(TAG, "    stop_bits %d", children[i]->stop_bits_);
-    ESP_LOGCONFIG(TAG, "    parity %s",
-                  children[i]->parity_ == uart::UART_CONFIG_PARITY_ODD    ? "ODD"
-                  : children[i]->parity_ == uart::UART_CONFIG_PARITY_EVEN ? "EVEN"
-                                                                          : "NONE");
+    ESP_LOGCONFIG(TAG, "    parity %s", this->parity_to_str(children[i]->parity_));
   }
 }
 
@@ -305,11 +314,16 @@ bool SC16IS75XChannel::peek_byte(uint8_t *buffer) {
 void SC16IS75XChannel::write_array(const uint8_t *buffer, size_t len) {
   if (len > tx_fifo_level_())
     return;
+  if (!check_read_timeout_(len)) {  // check timeout if we write
+    ESP_LOGE(TAG, "Writing to UART timed out ...");
+    return;
+  }
+
   parent_->write_sc16is75x_register_(SC16IS75X_REG_RHR, channel_, buffer, len);
   uint32_t start_time = millis();
   while (tx_fifo_level_() != 0) {
     if (millis() - start_time > 100) {
-      ESP_LOGW(TAG, "UART timed out in write!");
+      ESP_LOGW(TAG, "Writing to UART timed out ...");
       return;
     }
     yield();  // not sure what it does?
@@ -327,7 +341,7 @@ void SC16IS75XChannel::flush() {
 }
 
 uint8_t SC16IS75XChannel::read_uart_register_(int reg_address) {
-  parent_->buffer_ = 0;
+  parent_->buffer_ = 0;  // for debug help
   parent_->read_sc16is75x_register_(reg_address, channel_, &parent_->buffer_, 1);
   return parent_->buffer_;
 }
@@ -337,7 +351,7 @@ void SC16IS75XChannel::write_uart_register_(int reg_address, uint8_t value) {
 }
 
 /// @brief Enable/Disable FIFOs.
-/// Enabling FIFOs also reset the two FIFOs
+/// Enabling FIFOs and also reseting the two FIFOs
 /// @param enable true -> enable, false -> disable
 void SC16IS75XChannel::fifo_enable_(bool enable) {
   uint8_t fcr;
@@ -380,19 +394,17 @@ void SC16IS75XChannel::set_line_param_() {
   // update
   write_uart_register_(SC16IS75X_REG_LCR, lcr);
   ESP_LOGVV(TAG, "UART %d line set to %d data_bits, %d stop_bits, and %s parity", channel_, data_bits_, stop_bits_,
-            parity_ == uart::UART_CONFIG_PARITY_ODD    ? "ODD"
-            : parity_ == uart::UART_CONFIG_PARITY_EVEN ? "EVEN"
-                                                       : "NONE");
+            parity_to_str(parity_));
 }
 
 void SC16IS75XChannel::set_baudrate_() {
   // crystal on SC16IS750 is 14.7456MHz => max speed 14745600/16 = 921,600bps.
   // crystal on SC16IS752 is 3.072MHz => max speed 14745600/16 = 192,000bps
-  uint8_t pre_scaler = 1;  // we never use it
+  uint8_t pre_scaler = 1;  // we never use it... but we could if crystal is very high ...
   // (read_uart_register_(SC16IS75X_REG_MCR) & 0x80) == 0 ? pre_scaler = 1 : pre_scaler = 4;
+
   uint32_t upper_part = parent_->crystal_ / pre_scaler;
   uint32_t lower_part = baud_rate_ * 16;
-  // uint32_t max_baudrate = upper_part / 16;
 
   if (lower_part > upper_part) {  // sanity check
     ESP_LOGE(TAG, "The requested baudrate (%d) is too high - fallback to 19200", baud_rate_);
@@ -430,12 +442,20 @@ void SC16IS75XChannel::set_baudrate_() {
 //
 
 void SC16IS75XGPIOPin::setup() {
-  // TODO message
+  // we print flags_ as a binary string for easy reading
+  ESP_LOGCONFIG(TAG, "Setting GPIO pins direction/mode to '%s'", i2s_(flags_));
   pin_mode(flags_);
 }
-void SC16IS75XGPIOPin::pin_mode(gpio::Flags flags) { this->parent_->set_pin_mode_(this->pin_, flags); }
-bool SC16IS75XGPIOPin::digital_read() { return this->parent_->read_pin_val_(this->pin_) != this->inverted_; }
+void SC16IS75XGPIOPin::pin_mode(gpio::Flags flags) {
+  // TODO log
+  this->parent_->set_pin_direction_(this->pin_, flags);
+}
+bool SC16IS75XGPIOPin::digital_read() {
+  // TODO Log
+  return this->parent_->read_pin_val_(this->pin_) != this->inverted_;
+}
 void SC16IS75XGPIOPin::digital_write(bool value) {
+  // TODO log
   this->parent_->write_pin_val_(this->pin_, value != this->inverted_);
 }
 std::string SC16IS75XGPIOPin::dump_summary() const {
