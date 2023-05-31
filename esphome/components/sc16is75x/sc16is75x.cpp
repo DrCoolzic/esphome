@@ -217,7 +217,7 @@ void SC16IS75XComponent::setup() {
 
   // we can now setup our children
   for (auto i = 0; i < children.size(); i++) {
-    ESP_LOGCONFIG(TAG, "  Setting up UART %d...", i);
+    ESP_LOGCONFIG(TAG, "  Setting up UART %d:%d...", get_num_(), i);
     children[i]->fifo_enable_(true);
     children[i]->set_baudrate_();
     children[i]->set_line_param_();
@@ -237,7 +237,7 @@ void SC16IS75XComponent::dump_config() {
   }
 
   for (auto i = 0; i < children.size(); i++) {
-    ESP_LOGCONFIG(TAG, "  UART %d...", i);
+    ESP_LOGCONFIG(TAG, "  UART bus %d:%d...", get_num_(), i);
     ESP_LOGCONFIG(TAG, "    baudrate %d Bd", children[i]->baud_rate_);
     ESP_LOGCONFIG(TAG, "    data_bits %d", children[i]->data_bits_);
     ESP_LOGCONFIG(TAG, "    stop_bits %d", children[i]->stop_bits_);
@@ -363,7 +363,7 @@ void SC16IS75XChannel::fifo_enable_(bool enable) {
   uint8_t fcr;
   fcr = enable ? 0x3 : 0x0;
   write_uart_register_(SC16IS75X_REG_FCR, fcr);
-  ESP_LOGV(TAG, "UART %d fifo %s", channel_, enable ? "enabled" : "disabled");
+  ESP_LOGV(TAG, "UART %d:%d fifo %s", parent_->get_num_(), channel_, enable ? "enabled" : "disabled");
 }
 
 void SC16IS75XChannel::set_line_param_() {
@@ -399,8 +399,8 @@ void SC16IS75XChannel::set_line_param_() {
   }
   // update
   write_uart_register_(SC16IS75X_REG_LCR, lcr);
-  ESP_LOGV(TAG, "UART %d line set to %d data_bits, %d stop_bits, and %s parity", channel_, data_bits_, stop_bits_,
-           parity_to_str(parity_));
+  ESP_LOGV(TAG, "UART %d:%d line set to %d data_bits, %d stop_bits, and %s parity", parent_->get_num_(), data_bits_,
+           stop_bits_, parity_to_str(parity_));
 }
 
 void SC16IS75XChannel::set_baudrate_() {
@@ -421,8 +421,6 @@ void SC16IS75XChannel::set_baudrate_() {
   // we compute and round up the divisor
   uint32_t divisor = ceil((double) upper_part / (double) lower_part);
   uint32_t actual_baudrate = (upper_part / divisor) / 16;
-  ESP_LOGV(TAG, "UART %d Crystal=%d div=%d(%d/%d) Requested=%d Bd => actual=%d Bd", channel_, parent_->crystal_,
-           divisor, upper_part, lower_part, baud_rate_, actual_baudrate);
 
   auto lcr = read_uart_register_(SC16IS75X_REG_LCR);
   lcr |= 0x80;  // set LCR[7] to enable special registers
@@ -433,11 +431,11 @@ void SC16IS75XChannel::set_baudrate_() {
   write_uart_register_(SC16IS75X_REG_LCR, lcr);
 
   if (actual_baudrate == baud_rate_)
-    ESP_LOGV(TAG, "UART %d Crystal=%d div=%d(%d/%d) Requested=%d Bd => actual=%d Bd", channel_, parent_->crystal_,
-             divisor, upper_part, lower_part, baud_rate_, actual_baudrate);
+    ESP_LOGV(TAG, "UART %d:%d Crystal=%d div=%d(%d/%d) Requested=%d Bd => actual=%d Bd", parent_->get_num_(), channel_,
+             parent_->crystal_, divisor, upper_part, lower_part, baud_rate_, actual_baudrate);
   else
-    ESP_LOGW(TAG, "UART %d Crystal=%d div=%d(%d/%d) Requested=%d Bd => actual=%d Bd", channel_, parent_->crystal_,
-             divisor, upper_part, lower_part, baud_rate_, actual_baudrate);
+    ESP_LOGW(TAG, "UART %d Crystal=%d div=%d(%d/%d) Requested=%d Bd => actual=%d Bd", parent_->get_num_(), channel_,
+             parent_->crystal_, divisor, upper_part, lower_part, baud_rate_, actual_baudrate);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
