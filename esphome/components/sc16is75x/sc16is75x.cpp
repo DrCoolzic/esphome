@@ -32,18 +32,17 @@ Maximum checks/debug tests are performs in these two functions and benifits
 to the other helper methods available for io and uart.
 
   @section sc16is75x_uart_ SC16IS75XChannel (UART) class
-Unfortunately I could not find any description of the uart::UARTDevice and
-the uart::UARTComponent classes of @ref ESPHome. But it seems that they take
-their roots from the Arduino library that I have therefore scrutinized.\n
+Unfortunately I could not find any documentation about uart::UARTDevice and
+uart::UARTComponent classes of @ref ESPHome. But it seems that both of them take
+their roots from the Arduino library.\n
 Most of the \b Serial methods provided in the Arduino library are **poorly
 defined** and it seems that their API has \b changed over time!\n
 The esphome::uart::UARTDevice class directly relates to the **Serial Class**
 in Arduino and they both derive from a **Stream class**.\n
-On top of that and for compatibility reason many simpler helper method are made
-available in ESPHome but they often loose the original status information ...\n
+For compatibility reason (?) many helper methods are made available in ESPHome,
+but unfortunately in most cases they do not return the status information ...\n
 
-Therefore I have implemented what I believe is the best way I could think of for
-these classes/methods.
+Therefore I have tried my best to implement the methods of this class!
 
 @subsection ra_ss_ bool read_array(uint8_t *buffer, size_t len);
 
@@ -188,7 +187,7 @@ bool SC16IS75XComponent::read_pin_val_(uint8_t pin) {
 
 void SC16IS75XComponent::write_pin_val_(uint8_t pin, bool value) {
   value ? this->output_state_ |= (1 << pin) : this->output_state_ &= ~(1 << pin);
-  ESP_LOGVV(TAG, "writing output pin %d out_state %s", pin, i2s_(output_state_));
+  ESP_LOGV(TAG, "writing output pin %d out_state %s", pin, i2s_(output_state_));
   this->write_io_register_(SC16IS75X_REG_IOP, this->output_state_);
 }
 
@@ -364,7 +363,7 @@ void SC16IS75XChannel::fifo_enable_(bool enable) {
   uint8_t fcr;
   fcr = enable ? 0x3 : 0x0;
   write_uart_register_(SC16IS75X_REG_FCR, fcr);
-  ESP_LOGVV(TAG, "UART %d fifo %s", channel_, enable ? "enabled" : "disabled");
+  ESP_LOGV(TAG, "UART %d fifo %s", channel_, enable ? "enabled" : "disabled");
 }
 
 void SC16IS75XChannel::set_line_param_() {
@@ -400,8 +399,8 @@ void SC16IS75XChannel::set_line_param_() {
   }
   // update
   write_uart_register_(SC16IS75X_REG_LCR, lcr);
-  ESP_LOGVV(TAG, "UART %d line set to %d data_bits, %d stop_bits, and %s parity", channel_, data_bits_, stop_bits_,
-            parity_to_str(parity_));
+  ESP_LOGV(TAG, "UART %d line set to %d data_bits, %d stop_bits, and %s parity", channel_, data_bits_, stop_bits_,
+           parity_to_str(parity_));
 }
 
 void SC16IS75XChannel::set_baudrate_() {
@@ -422,8 +421,8 @@ void SC16IS75XChannel::set_baudrate_() {
   // we compute and round up the divisor
   uint32_t divisor = ceil((double) upper_part / (double) lower_part);
   uint32_t actual_baudrate = (upper_part / divisor) / 16;
-  ESP_LOGVV(TAG, "UART %d Crystal=%d div=%d(%d/%d) Requested=%d Bd => actual=%d Bd", channel_, parent_->crystal_,
-            divisor, upper_part, lower_part, baud_rate_, actual_baudrate);
+  ESP_LOGV(TAG, "UART %d Crystal=%d div=%d(%d/%d) Requested=%d Bd => actual=%d Bd", channel_, parent_->crystal_,
+           divisor, upper_part, lower_part, baud_rate_, actual_baudrate);
 
   auto lcr = read_uart_register_(SC16IS75X_REG_LCR);
   lcr |= 0x80;  // set LCR[7] to enable special registers
@@ -434,8 +433,8 @@ void SC16IS75XChannel::set_baudrate_() {
   write_uart_register_(SC16IS75X_REG_LCR, lcr);
 
   if (actual_baudrate == baud_rate_)
-    ESP_LOGVV(TAG, "UART %d Crystal=%d div=%d(%d/%d) Requested=%d Bd => actual=%d Bd", channel_, parent_->crystal_,
-              divisor, upper_part, lower_part, baud_rate_, actual_baudrate);
+    ESP_LOGV(TAG, "UART %d Crystal=%d div=%d(%d/%d) Requested=%d Bd => actual=%d Bd", channel_, parent_->crystal_,
+             divisor, upper_part, lower_part, baud_rate_, actual_baudrate);
   else
     ESP_LOGW(TAG, "UART %d Crystal=%d div=%d(%d/%d) Requested=%d Bd => actual=%d Bd", channel_, parent_->crystal_,
              divisor, upper_part, lower_part, baud_rate_, actual_baudrate);
@@ -449,10 +448,10 @@ void SC16IS75XChannel::set_baudrate_() {
 //
 
 void SC16IS75XGPIOPin::setup() {
-  ESP_LOGVV(TAG, "Setting GPIO pin %d mode to %s", this->pin_,
-            flags_ == gpio::FLAG_INPUT                  ? "Input"
-            : (this->pin_, flags_ == gpio::FLAG_OUTPUT) ? "Output"
-                                                        : "NOT SPECIFIED");
+  ESP_LOGV(TAG, "Setting GPIO pin %d mode to %s", this->pin_,
+           flags_ == gpio::FLAG_INPUT                  ? "Input"
+           : (this->pin_, flags_ == gpio::FLAG_OUTPUT) ? "Output"
+                                                       : "NOT SPECIFIED");
   // ESP_LOGCONFIG(TAG, "Setting GPIO pins direction/mode to '%s' %02X", i2s_(flags_), flags_);
   pin_mode(flags_);
 }
