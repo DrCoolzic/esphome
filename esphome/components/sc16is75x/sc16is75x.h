@@ -12,7 +12,7 @@ namespace esphome {
 namespace sc16is75x {
 
 // convert byte to binary string
-inline const char* i2s_(uint8_t val) { return std::bitset<8>(val).to_string().c_str(); }
+inline const char *i2s_(uint8_t val) { return std::bitset<8>(val).to_string().c_str(); }
 
 // General sc16is75x registers
 const uint8_t SC16IS75X_REG_RHR = 0x00;  // receive holding register (r) with a 64-bytes FIFO
@@ -69,6 +69,8 @@ class SC16IS75XChannel;  // forward declaration
 ///////////////////////////////////////////////////////////////////////////////
 class SC16IS75XComponent : public Component, public i2c::I2CDevice {
  public:
+  SC16IS75XComponent() { ++count_; }
+  int get_num_() const { return num_; }
   void set_model(SC16IS75XComponentModel model) { model_ = model; }
   void set_crystal(uint32_t crystal) { crystal_ = crystal; }
 
@@ -139,6 +141,8 @@ class SC16IS75XComponent : public Component, public i2c::I2CDevice {
   uint8_t buffer_{0};
   /// @brief the list of SC16IS75XChannel UART children
   std::vector<SC16IS75XChannel *> children{};
+  static int count_;  // count number of instances
+  int num_{count_};   // take current count
 };
 
 ///////////////////////////////////////////////////////////////////////////////
