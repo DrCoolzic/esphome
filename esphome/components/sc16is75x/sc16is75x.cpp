@@ -245,6 +245,88 @@ void SC16IS75XComponent::dump_config() {
   }
 }
 
+/// @brief test the uart send/receive buffer
+/// - here we assume the user has connected all the rx pins to tx pins
+/// @param safe
+/// - true implies how things should be if we had a function to know space
+///   available in the transmit buffer.
+/// - false we call blindly the write function and this will result in an
+///   eventual buffer overrun that will be catch in write_array
+void SC16IS75XComponent::test_uart__(bool safe) {
+  class Increment {  // functor: A class object that acts like a function with state
+   public:
+    Increment() : i_(0) {}
+    uint8_t operator()() { return i_++; }
+
+   private:
+    uint8_t i_;
+  };
+
+  if (children.empty())
+    return;
+
+  for (size_t i = 0; i < children.size(); i++) {
+    auto child = children[i];
+
+    // test write_array
+    auto start_exec = millis();
+    auto available = child->tx_fifo_level_();
+    if (!safe)
+      available = 64;                                       // might result in overrun
+    if (available > 0) {
+      std::vector<uint8_t> buffer(available);               // set buffer size to available
+      generate(buffer.begin(), buffer.end(), Increment());  // fill with incrementing number
+      child->write_array(&buffer[0], available);
+      ESP_LOGI(TAG, "sending %d char - exec time %d ms ...", available, millis() - start_exec);
+    }
+
+    // test read_array - we try to get as much as we can
+    start_exec = millis();
+    available = child->available();
+    if (available > 0) {
+      std::vector<uint8_t> buffer(available);
+      char status[32];
+      snprintf(status, sizeof(status), "%s", child->read_array(&buffer[0], available) ? "OK" : "ERROR");
+      ESP_LOGI(TAG, "received %d char %s - exec time %d ms ...", available, status, millis() - start_exec);
+      // quick and ugly hex converter to display buffer in hex
+      char hex_buf[200];
+      int pos = 0;
+      for (size_t i = 0; i < available; i++, pos += 3) {
+        snprintf(&hex_buf[pos], sizeof(hex_buf), "%02X ", buffer[i]);
+        if (pos > 72) {
+          hex_buf[pos + 2] = 0;
+          ESP_LOGI(TAG, "   %s", hex_buf);
+          pos = 0;
+        }
+      }
+      hex_buf[pos + 1] = 0;
+      ESP_LOGI(TAG, "   %s", hex_buf);
+    }
+  }
+}
+
+void SC16IS75XComponent::loop() {
+  //
+  // This loop is used only if the sc16is75x component is in test mode
+  //
+  if (test_mode_ == 0)
+    return;
+  static int32_t end_time = 0;
+  ESP_LOGI(TAG, "time between loop call %d ms...", millis() - end_time);
+  end_time = millis();
+
+  switch (test_mode_) {
+    case 1:
+      test_uart__();
+      // test_io__ TODO
+      break;
+
+    case 2:
+      // TODO
+      break;
+  }
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // The SC16IS75XChannel methods
 ///////////////////////////////////////////////////////////////////////////////
@@ -257,25 +339,22 @@ void SC16IS75XComponent::dump_config() {
 ///   - it terminates with false if we have a timeout condition
 /// Note that the SC16IS75X UART has a 64 bytes internal buffer
 bool SC16IS75XChannel::read_array(uint8_t *buffer, size_t len) {
-  if (!peek_byte_.empty) {
+  if (!peek_byte_.empty) {  // test peek buffer
     *buffer++ = peek_byte_.byte;
     peek_byte_.empty = true;
-    if (--len == 0)
+    if (len-- == 1)
       return true;
-  }
-
-  if (!check_read_timeout_(len)) {  // check timeout if we read
-    ESP_LOGE(TAG, "Reading from UART timed out ...");
-    return false;
   }
 
   uint32_t start_time = millis();
   while (rx_fifo_level_() < len) {
+    // we wait as much as we can (i.e. 100 ms) to get the requested bytes
     if (millis() - start_time > 100) {
-      ESP_LOGE(TAG, "Reading from UART timed out at byte %u!", this->available());
-      return false;
+      ESP_LOGE(TAG, "Read buffer underrun: requested %d bytes only %d available...", len, rx_fifo_level_());
+      len = rx_fifo_level_();  // set length to what we have got so far
+      break;
     }
-    yield();  // not sure what it does? I suppose reschedule thread to avoid blocking?
+    yield();  // I suppose this func reschedule thread to avoid blocking?
   }
   parent_->read_sc16is75x_register_(SC16IS75X_REG_RHR, channel_, buffer, len);
   return true;
@@ -283,16 +362,10 @@ bool SC16IS75XChannel::read_array(uint8_t *buffer, size_t len) {
 
 /// @brief Please refer to @ref read_array() for more information on this method.
 bool SC16IS75XChannel::peek_byte(uint8_t *buffer) {
+  if (peek_byte_.empty && available() == 0)
+    return false;
   if (peek_byte_.empty) {
     peek_byte_.empty = false;
-    uint32_t start_time = millis();
-    while (rx_fifo_level_() == 0) {
-      if (millis() - start_time > 100) {
-        ESP_LOGE(TAG, "Peeking from UART timed out!");
-        return false;
-      }
-      yield();  // not sure what it does?
-    }
     peek_byte_.byte = read_uart_register_(SC16IS75X_REG_RHR);
   }
   *buffer = peek_byte_.byte;
@@ -319,31 +392,31 @@ bool SC16IS75XChannel::peek_byte(uint8_t *buffer) {
 ///   the character has been sent or if timeout
 void SC16IS75XChannel::write_array(const uint8_t *buffer, size_t len) {
   if (len > tx_fifo_level_())
-    return;
-  if (!check_read_timeout_(len)) {  // check timeout if we write
-    ESP_LOGE(TAG, "Writing to UART timed out ...");
-    return;
-  }
+    ESP_LOGE(TAG, "Write buffer overrun: requested %d can only send %d bytes ...", len, tx_fifo_level_());
+  len = tx_fifo_level_();  // send as much as possible
 
   parent_->write_sc16is75x_register_(SC16IS75X_REG_RHR, channel_, buffer, len);
   uint32_t start_time = millis();
-  while (tx_fifo_level_() != 0) {
+  while (tx_fifo_level_() != 64) {  // we wait for buffer to refill
     if (millis() - start_time > 100) {
-      ESP_LOGW(TAG, "Writing to UART timed out ...");
+      ESP_LOGW(TAG, "Writing to UART timed out at level %u...", tx_fifo_level_());
       return;
     }
-    yield();  // not sure what it does?
+    yield();  // I suppose this func reschedule thread to avoid blocking?
   }
 }
 
 /// **IMPLEMENTATION DETAILS** - This function is the worse of all UART functions !!!
+///
 /// If we refer to Serial.flush() in Arduino it says: ** Waits for the transmission
 /// of outgoing serial data to complete. (Prior to Arduino 1.0, this instead removed
-/// any buffered incoming serial data.).
-/// Therefore I do a mixture of both but not waiting: I clear the RX and TX fifos
+/// any buffered incoming serial data.). **
+///
+/// Therefore my implementation is a mixture of the two behaviors described above:
+/// - it immediately flush the receiver and the transmitter fifo
 void SC16IS75XChannel::flush() {
   ESP_LOGW(TAG, "This functions is not safe");
-  fifo_enable_(true);
+  fifo_enable_(true);  // this will clear the 2 fifo
 }
 
 uint8_t SC16IS75XChannel::read_uart_register_(int reg_address) {
@@ -397,10 +470,10 @@ void SC16IS75XChannel::set_line_param_() {
     default:
       break;  // no parity
   }
-  // update
+  // update register
   write_uart_register_(SC16IS75X_REG_LCR, lcr);
-  ESP_LOGV(TAG, "UART %d:%d line set to %d data_bits, %d stop_bits, and %s parity", parent_->get_num_(), data_bits_,
-           stop_bits_, parity_to_str(parity_));
+  ESP_LOGV(TAG, "UART %d:%d line set to %d data_bits, %d stop_bits, and %s parity [%s]", parent_->get_num_(),
+           data_bits_, stop_bits_, parity_to_str(parity_), i2s_(lcr));
 }
 
 void SC16IS75XChannel::set_baudrate_() {
@@ -418,8 +491,8 @@ void SC16IS75XChannel::set_baudrate_() {
     lower_part = baud_rate_ * 16;
   }
 
-  // we compute and round up the divisor
-  uint32_t divisor = ceil((double) upper_part / (double) lower_part);
+  // we compute and round the divisor
+  uint32_t divisor = (double) upper_part / (double) lower_part;
   uint32_t actual_baudrate = (upper_part / divisor) / 16;
 
   auto lcr = read_uart_register_(SC16IS75X_REG_LCR);
@@ -434,7 +507,7 @@ void SC16IS75XChannel::set_baudrate_() {
     ESP_LOGV(TAG, "UART %d:%d Crystal=%d div=%d(%d/%d) Requested=%d Bd => actual=%d Bd", parent_->get_num_(), channel_,
              parent_->crystal_, divisor, upper_part, lower_part, baud_rate_, actual_baudrate);
   else
-    ESP_LOGW(TAG, "UART %d Crystal=%d div=%d(%d/%d) Requested=%d Bd => actual=%d Bd", parent_->get_num_(), channel_,
+    ESP_LOGW(TAG, "UART %d:%d Crystal=%d div=%d(%d/%d) Requested=%d Bd => actual=%d Bd", parent_->get_num_(), channel_,
              parent_->crystal_, divisor, upper_part, lower_part, baud_rate_, actual_baudrate);
 }
 

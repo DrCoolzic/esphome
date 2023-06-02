@@ -17,7 +17,7 @@ from esphome.const import (
 
 CODEOWNERS = ["@DrCoolZic"]
 DEPENDENCIES = ["i2c"]
-AUTO_LOAD = ["uart"]
+# AUTO_LOAD = ["uart"]
 
 sc16is75x_ns = cg.esphome_ns.namespace("sc16is75x")
 SC16IS75XComponent = sc16is75x_ns.class_(
@@ -38,6 +38,7 @@ CONF_PARITY = "parity"
 CONF_MODEL = "model"
 CONF_CRYSTAL = "crystal"
 CONF_UART = "uart"
+CONF_TEST_MODE = "test_mode"
 
 SC16IS75XComponentModel = sc16is75x_ns.enum("SC16IS75XComponentModel")
 SC16IS75X_MODELS = {
@@ -77,6 +78,7 @@ CONFIG_SCHEMA = cv.All(
                 SC16IS75X_MODELS, upper=True
             ),
             cv.Optional(CONF_CRYSTAL): cv.int_,
+            cv.Optional(CONF_TEST_MODE, default=0): cv.int_,
             cv.Optional(CONF_UART, default=[]): cv.ensure_list(
                 {
                     cv.Required(CONF_UART_ID): cv.declare_id(SC16IS75XChannel),
@@ -101,6 +103,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_model(config[CONF_MODEL]))
     cg.add(var.set_crystal(config[CONF_CRYSTAL]))
+    cg.add(var.set_test_mode(config[CONF_TEST_MODE]))
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
     for uart_elem in config[CONF_UART]:
