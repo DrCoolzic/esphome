@@ -7,6 +7,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/uart/uart.h"
+#include "esphome/components/external_uart/external_uart.h"
 
 namespace esphome {
 namespace sc16is75x {
@@ -152,13 +153,9 @@ class SC16IS75XComponent : public Component, public i2c::I2CDevice {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Describes the UART part of a SC16IS75X I²C component.
 ///
-/// This class derives from the @ref esphome @ref uart::UARTComponent class.
-/// As the @ref uart::UARTComponent is a pure virtual class we need to
-/// implement the following functions : @ref uart::UARTComponent::write_array(),
-/// @ref uart::UARTComponent::read_array(), @ref uart::UARTComponent::peek_byte(),
-/// @ref uart::UARTComponent::available(), @ref uart::UARTComponent::flush().
+/// This class derives from the @ref esphome @ref external_uart::ExternalUARTComponent class.
 ///////////////////////////////////////////////////////////////////////////////
-class SC16IS75XChannel : public uart::UARTComponent {
+class SC16IS75XChannel : public external_uart::ExternalUARTComponent {
  public:
   void set_parent(SC16IS75XComponent *parent) {
     parent_ = parent;
@@ -170,53 +167,45 @@ class SC16IS75XChannel : public uart::UARTComponent {
   // overriden UARTComponent functions
   //
 
-  /// @brief Write a specified number of bytes from a buffer to a serial port
-  /// for more detail refer to implementation refer to @ref page_sc1675x_
-  /// @param buffer pointer to the buffer
-  /// @param len number of bytes to write
-  void write_array(const uint8_t *buffer, size_t len) override;
-
-  /// @brief Read a specified number of bytes from a serial port to an buffer
-  /// for more detail refer to implementation refer to @ref page_sc1675x_
-  /// @param buffer pointer to the buffer
-  /// @param len number of bytes to read
-  /// @return true if succeed false otherwise
-  bool read_array(uint8_t *buffer, size_t len) override;
-
-  /// @brief Read next byte available from serial buffer without removing it
-  /// for more detail refer to implementation refer to @ref page_sc1675x_
-  /// @param buffer pointer to the byte
-  /// @return true if succeed false otherwise
-  bool peek_byte(uint8_t *buffer) override;
-
-  /// @brief Return the number of bytes available for reading from the serial port.
-  /// for more detail refer to implementation refer to @ref page_sc1675x_
-  /// @return the number of bytes available in the fifo
-  int available() override { return rx_fifo_level_(); }
-
   /// @brief Flush the input and output fifo
   /// for more detail refer to implementation refer to @ref page_sc1675x_
   void flush() override;
 
+  /// @brief Should return the number of bytes available in the receiver fifo
+  /// @return the number of bytes we can read
+  size_t rx_available() override { return read_uart_register_(SC16IS75X_REG_RXF); }
+  /// @brief Should return the number of bytes available in the transmitter fifo
+  /// @return the number of bytes we can write
+  virtual size_t tx_available() override { return read_uart_register_(SC16IS75X_REG_TXF); }
+  /// @brief Read data from the receiver fifo to a buffer
+  /// @param buffer the buffer
+  /// @param len the number of bytes we want to read
+  /// @return true if succeed false otherwise
+  virtual bool read_data(uint8_t *buffer, size_t len) override {
+    return parent_->read_sc16is75x_register_(SC16IS75X_REG_RHR, channel_, buffer, len) == i2c::ERROR_OK;
+  }
+  /// @brief Write data to the transmitter fifo from a buffer
+  /// @param buffer the buffer
+  /// @param len the number of bytes we want to write
+  /// @return true if succeed false otherwise
+  virtual bool write_data(const uint8_t *buffer, size_t len) override {
+    return parent_->write_sc16is75x_register_(SC16IS75X_REG_RHR, channel_, buffer, len) == i2c::ERROR_OK;
+  }
+  /// @brief Query the size of the component's fifo
+  /// @return the size
+  virtual size_t fifo_size() override { return 64; }
+
  protected:
   friend class SC16IS75XComponent;
-  /// @brief cannot happen with our component!
-  void check_logger_conflict() override {}
 
   uint8_t read_uart_register_(int reg_address);
   void write_uart_register_(int reg_address, uint8_t value);
   void set_line_param_();
   void set_baudrate_();
   void fifo_enable_(bool enable = true);
-  inline int rx_fifo_level_() { return read_uart_register_(SC16IS75X_REG_RXF); }
-  inline int tx_fifo_level_() { return read_uart_register_(SC16IS75X_REG_TXF); }
 
   SC16IS75XComponent *parent_;
   uint8_t channel_;
-  struct {
-    uint8_t byte;
-    bool empty{true};
-  } peek_byte_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

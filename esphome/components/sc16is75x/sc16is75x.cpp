@@ -28,90 +28,9 @@ All call to the i2c::I2CDevice register read and write are funneled through two 
 - The SC16IS75XComponent::read_sc16is75x_register_() and
 - The SC16IS75XComponent::write_sc16is75x_register_().
 
-Maximum checks/debug tests are performs in these two functions and benifits
-to the other helper methods available for io and uart.
-
   @section sc16is75x_uart_ SC16IS75XChannel (UART) class
-Unfortunately I could not find any documentation about uart::UARTDevice and
-uart::UARTComponent classes of @ref ESPHome. But it seems that both of them take
-their roots from the Arduino library.\n
-Most of the \b Serial methods provided in the Arduino library are **poorly
-defined** and it seems that their API has \b changed over time!\n
-The esphome::uart::UARTDevice class directly relates to the **Serial Class**
-in Arduino and they both derive from a **Stream class**.\n
-For compatibility reason (?) many helper methods are made available in ESPHome,
-but unfortunately in most cases they do not return the status information ...\n
 
-Therefore I have tried my best to implement the methods of this class!
-
-@subsection ra_ss_ bool read_array(uint8_t *buffer, size_t len);
-
-This method receives 'len' characters from the uart and transfer them into
-the buffer. It returns:
-- true if requested number of characters have been read,
-- false if we have a timeout condition\n
-
-Note that the SC16IS75X UART has a 64 bytes internal buffer that we first read
-if character are available, then we wait for 100 ms for the requested total number
-of characters. In the Arduino library it is mentioned that the read_byte() method
-should not be called with \b len greater than 32 bytes.
-
-It is recommended to test the number of characters available in the fifo
-before calling this method.
-
-Typical usage could be:
-@code
-  // ...
-  auto len = available();
-  uint8_t buffer[64];
-  if (len > 0) {
-    auto status = read_array(&buffer, len)
-  }
-  // test status ...
-@endcode
-
-@subsection pb_ss_ bool peek_byte(uint8_t *buffer);
-
-This method returns the next byte from incoming serial data without removing it
-from the internal fifo. It returns:
-- true if a character have been read,
-- it false if we have a timeout condition.\n
-
-For more information refer to @ref ra_ss_.
-
-@subsection wa_ss_ void write_array(uint8_t *buffer, size_t len);
-
-This method sends 'len' characters from the buffer to the serial line.
-Unfortunately (unlike to the Arduino equivalent) this method
-does not return any value and therefore there is no possibility
-to know if the bytes has been transmitted correctly.
-
-The current implementation does the following:
-- it fills the output fifo with the provided bytes.
-- it waits until either all the bytes have been sent or
-  until a timeout of 100 ms has been reached.
-
-Note:
-- The internal buffer is 64 bytes long and therefore a request
-  to send more characters is treated as an error.
-- Unfortunately neither Arduino nor ESPHome provide a method to
-  find how much space is available in the transmit buffer
-  before calling this function
-
-Typical usage could be:
-@code
-  // ...
-  uint8_t buffer[64];
-  size_t len;
-  // ...
-  len = ...
-  while (len > 0) {
-    send = max(len, 64);
-    write_array(&buffer, send);
-    len -= send;
-  }
-  // ...
-@endcode
+  @TODO
 
 @subsection fl_ss_ void SC16IS75XChannel::flush() {
 This method is definitively the worse of all UART methods !!!
@@ -133,7 +52,6 @@ The current implementation does the following: reset both the input and output f
 ///////////////////////////////////////////////////////////////////////////////
 // The SC16IS75XComponent methods
 ///////////////////////////////////////////////////////////////////////////////
-
 int SC16IS75XComponent::count_{0};  // init static count
 
 i2c::ErrorCode SC16IS75XComponent::write_sc16is75x_register_(uint8_t reg_address, uint8_t channel,
@@ -245,79 +163,23 @@ void SC16IS75XComponent::dump_config() {
   }
 }
 
-/// @brief test the uart send/receive buffer
-/// - here we assume the user has connected all the rx pins to tx pins
-/// @param safe
-/// - true implies how things should be if we had a function to know space
-///   available in the transmit buffer.
-/// - false we call blindly the write function and this will result in an
-///   eventual buffer overrun that will be catch in write_array
-void SC16IS75XComponent::test_uart__(bool safe) {
-  class Increment {  // functor: A class object that acts like a function with state
-   public:
-    Increment() : i_(0) {}
-    uint8_t operator()() { return i_++; }
-
-   private:
-    uint8_t i_;
-  };
-
-  if (children.empty())
-    return;
-
-  for (size_t i = 0; i < children.size(); i++) {
-    auto child = children[i];
-
-    // test write_array
-    auto start_exec = millis();
-    auto available = child->tx_fifo_level_();
-    if (!safe)
-      available = 64;                                       // might result in overrun
-    if (available > 0) {
-      std::vector<uint8_t> buffer(available);               // set buffer size to available
-      generate(buffer.begin(), buffer.end(), Increment());  // fill with incrementing number
-      child->write_array(&buffer[0], available);
-      ESP_LOGI(TAG, "sending %d char - exec time %d ms ...", available, millis() - start_exec);
-    }
-
-    // test read_array - we try to get as much as we can
-    start_exec = millis();
-    available = child->available();
-    if (available > 0) {
-      std::vector<uint8_t> buffer(available);
-      char status[32];
-      snprintf(status, sizeof(status), "%s", child->read_array(&buffer[0], available) ? "OK" : "ERROR");
-      ESP_LOGI(TAG, "received %d char %s - exec time %d ms ...", available, status, millis() - start_exec);
-      // quick and ugly hex converter to display buffer in hex
-      char hex_buf[200];
-      int pos = 0;
-      for (size_t i = 0; i < available; i++, pos += 3) {
-        snprintf(&hex_buf[pos], sizeof(hex_buf), "%02X ", buffer[i]);
-        if (pos > 72) {
-          hex_buf[pos + 2] = 0;
-          ESP_LOGI(TAG, "   %s", hex_buf);
-          pos = 0;
-        }
-      }
-      hex_buf[pos + 1] = 0;
-      ESP_LOGI(TAG, "   %s", hex_buf);
-    }
-  }
-}
-
 void SC16IS75XComponent::loop() {
   //
   // This loop is used only if the sc16is75x component is in test mode
   //
   if (test_mode_ == 0)
     return;
+
   static int32_t end_time = 0;
   ESP_LOGI(TAG, "time between loop call %d ms...", millis() - end_time);
   end_time = millis();
 
   switch (test_mode_) {
     case 1:
-      test_uart__();
+      if (children.size() > 0)
+        for (size_t i = 0; i < children.size(); i++) {
+          children[i]->test_uart_(true);
+        }
       // test_io__ TODO
       break;
 
@@ -330,81 +192,6 @@ void SC16IS75XComponent::loop() {
 ///////////////////////////////////////////////////////////////////////////////
 // The SC16IS75XChannel methods
 ///////////////////////////////////////////////////////////////////////////////
-
-/// **IMPLEMENTATION DETAILS** - I am not aware of any formal definition of this
-/// function written somewhere, but based on common sense and looking at Arduino
-/// code it seems that the following is expected:
-/// - the function **tries** to receive 'len' characters from the uart into buffer:
-///   - it terminates with true if requested number of characters have been read,
-///   - it terminates with false if we have a timeout condition
-/// Note that the SC16IS75X UART has a 64 bytes internal buffer
-bool SC16IS75XChannel::read_array(uint8_t *buffer, size_t len) {
-  if (!peek_byte_.empty) {  // test peek buffer
-    *buffer++ = peek_byte_.byte;
-    peek_byte_.empty = true;
-    if (len-- == 1)
-      return true;
-  }
-
-  uint32_t start_time = millis();
-  while (rx_fifo_level_() < len) {
-    // we wait as much as we can (i.e. 100 ms) to get the requested bytes
-    if (millis() - start_time > 100) {
-      ESP_LOGE(TAG, "Read buffer underrun: requested %d bytes only %d available...", len, rx_fifo_level_());
-      len = rx_fifo_level_();  // set length to what we have got so far
-      break;
-    }
-    yield();  // I suppose this func reschedule thread to avoid blocking?
-  }
-  parent_->read_sc16is75x_register_(SC16IS75X_REG_RHR, channel_, buffer, len);
-  return true;
-}
-
-/// @brief Please refer to @ref read_array() for more information on this method.
-bool SC16IS75XChannel::peek_byte(uint8_t *buffer) {
-  if (peek_byte_.empty && available() == 0)
-    return false;
-  if (peek_byte_.empty) {
-    peek_byte_.empty = false;
-    peek_byte_.byte = read_uart_register_(SC16IS75X_REG_RHR);
-  }
-  *buffer = peek_byte_.byte;
-  return true;
-}
-
-/// **IMPLEMENTATION DETAILS** - I am not aware of any formal definition of this
-/// function written somewhere, but based on common sense and looking at Arduino
-/// code it seems that the following is expected:
-/// - the function **tries** to send 'len' characters to uart from buffer
-///
-/// Even though the read_byte function is poorly defined the write function is worse
-/// for several reasons:
-/// - There is no indication on available buffer size for writing
-///   therefore you send without knowing if it will succeed...
-/// - and even more importantly when you call this function you do not know
-///   if the bytes have been sent successfully.
-///
-/// In other word you are **totally blind** when using this function!
-/// Therefore here is what I do:
-/// - if 'len' is greater than available space in fifo I just return
-///   without doing anything
-/// - otherwise I send all char into the TX fifo and I wait until all
-///   the character has been sent or if timeout
-void SC16IS75XChannel::write_array(const uint8_t *buffer, size_t len) {
-  if (len > tx_fifo_level_())
-    ESP_LOGE(TAG, "Write buffer overrun: requested %d can only send %d bytes ...", len, tx_fifo_level_());
-  len = tx_fifo_level_();  // send as much as possible
-
-  parent_->write_sc16is75x_register_(SC16IS75X_REG_RHR, channel_, buffer, len);
-  uint32_t start_time = millis();
-  while (tx_fifo_level_() != 64) {  // we wait for buffer to refill
-    if (millis() - start_time > 100) {
-      ESP_LOGW(TAG, "Writing to UART timed out at level %u...", tx_fifo_level_());
-      return;
-    }
-    yield();  // I suppose this func reschedule thread to avoid blocking?
-  }
-}
 
 /// **IMPLEMENTATION DETAILS** - This function is the worse of all UART functions !!!
 ///
