@@ -45,8 +45,8 @@ class ExternalUARTComponent : public uart::UARTComponent {
   /// @return the number of bytes available in the receiver fifo
   int available() override { return rx_available(); }
 
-  /// @brief Flush the input and output fifo
-  // virtual void flush(); TODO yes or no ???
+  // @brief Flush the input and output fifo
+  virtual void flush();
 
   /// @brief This function can be used to test the uart bus
   /// @param safe if true we use safe write method by calling the tx_available()
@@ -55,19 +55,23 @@ class ExternalUARTComponent : public uart::UARTComponent {
   /// @brief Should return the number of bytes available in the receiver fifo
   /// @return the number of bytes we can read
   virtual size_t rx_available() = 0;
+
   /// @brief Should return the number of bytes available in the transmitter fifo
   /// @return the number of bytes we can write
   virtual size_t tx_available() = 0;
+
   /// @brief Read data from the receiver fifo to a buffer
   /// @param buffer the buffer
   /// @param len the number of bytes we want to read
   /// @return true if succeed false otherwise
   virtual bool read_data(uint8_t *buffer, size_t len) = 0;
+
   /// @brief Write data to the transmitter fifo from a buffer
   /// @param buffer the buffer
   /// @param len the number of bytes we want to write
   /// @return true if succeed false otherwise
   virtual bool write_data(const uint8_t *buffer, size_t len) = 0;
+
   /// @brief Query the size of the component's fifo
   /// @return the size
   virtual size_t fifo_size() = 0;
