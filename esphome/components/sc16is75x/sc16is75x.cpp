@@ -259,7 +259,7 @@ void SC16IS75XChannel::set_line_param_() {
   }
   // update register
   write_uart_register_(SC16IS75X_REG_LCR, lcr);
-  ESP_LOGV(TAG, "UART %d:%d line set to %d data_bits, %d stop_bits, and %s parity [%s]", parent_->get_num_(),
+  ESP_LOGV(TAG, "UART %d:%d line set to %d data_bits, %d stop_bits, and %s parity [%s]", parent_->get_num_(), channel_,
            data_bits_, stop_bits_, parity_to_str(parity_), i2s_(lcr));
 }
 
