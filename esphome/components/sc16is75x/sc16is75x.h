@@ -7,13 +7,10 @@
 #include "esphome/core/component.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/uart/uart.h"
-#include "esphome/components/external_uart/external_uart.h"
+#include "ext_uart.h"
 
 namespace esphome {
 namespace sc16is75x {
-
-// convert byte to binary string
-inline const char *i2s_(uint8_t val) { return std::bitset<8>(val).to_string().c_str(); }
 
 // General sc16is75x registers
 const uint8_t SC16IS75X_REG_RHR = 0x00;  // 00 receive holding register (r) with a 64-bytes FIFO
@@ -74,6 +71,7 @@ class SC16IS75XComponent : public Component, public i2c::I2CDevice {
   void set_model(SC16IS75XComponentModel model) { model_ = model; }
   void set_crystal(uint32_t crystal) { crystal_ = crystal; }
   void set_test_mode(int test_mode) { test_mode_ = test_mode; }
+
   //
   //  override Component functions
   //
@@ -116,67 +114,63 @@ class SC16IS75XComponent : public Component, public i2c::I2CDevice {
 
   /// Helper function to read the value of a pin.
   bool read_pin_val_(uint8_t pin);
+
   /// Helper function to write the value of a pin.
   void write_pin_val_(uint8_t pin, bool value);
+
   /// Helper function to set the pin mode of a pin.
   void set_pin_direction_(uint8_t pin, gpio::Flags flags);
+
   // the register address is composed of the register value and the channel value.
   // note that for I/O related register the chanel value is not significant
   inline uint8_t subaddress_(uint8_t reg_addr, uint8_t channel = 0) { return (reg_addr << 3 | channel << 1); }
-  inline const char *parity_to_str(uart::UARTParityOptions parity) {
-    return (parity == uart::UART_CONFIG_PARITY_ODD)    ? "ODD"
-           : (parity == uart::UART_CONFIG_PARITY_EVEN) ? "EVEN"
-                                                       : "NONE";
-  }
-  int get_num_() const { return num_; }
-  void test_uart__(bool safe = true);
 
-  /// Mask for the pin config - 1 means OUTPUT, 0 means INPUT
+  bool initialized_{false};
+  int get_num_() const { return num_; }
+
+  /// pin config mask: 1 means OUTPUT, 0 means INPUT
   uint8_t pin_config_{0x00};
-  /// The mask to write as output state - 1 means HIGH, 0 means LOW
+  /// output state: 1 means HIGH, 0 means LOW
   uint8_t output_state_{0x00};
-  /// The state of the actual input pin states - 1 means HIGH, 0 means LOW
+  /// input pin states: 1 means HIGH, 0 means LOW
   uint8_t input_state_{0x00};
-  /// @brief The precise model of the component
-  SC16IS75XComponentModel model_{SC16IS752_MODEL};
-  /// crystal default on SC16IS750 => 14.7456MHz - on SC16IS752 => 3.072MHz
-  uint32_t crystal_{3072000};
-  /// one byte buffer used for most register operation to avoid allocation
-  uint8_t buffer_{0};
-  /// @brief the list of SC16IS75XChannel UART children
-  std::vector<SC16IS75XChannel *> children{};
-  static int count_;  // count number of instances
+
+  SC16IS75XComponentModel model_{SC16IS752_MODEL};  ///< model of the component
+  uint32_t crystal_{3072000};                       ///< crystal default for SC16IS752
+  uint8_t buffer_{0};                               /// one byte buffer
+  std::vector<SC16IS75XChannel *> children_{};      ///< the list of SC16IS75XChannel UART children
+  static int count_;                                ///< count number of instances
+  int num_{count_};                                 ///< store current count
   int test_mode_{0};
-  int num_{count_};   // take current count
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Describes the UART part of a SC16IS75X I²C component.
 ///
-/// This class derives from the @ref esphome @ref external_uart::ExternalUARTComponent class.
+/// This class derives from the @ref esphome @ref external_uart::ExtUARTComponent class.
 ///////////////////////////////////////////////////////////////////////////////
-class SC16IS75XChannel : public external_uart::ExternalUARTComponent {
+class SC16IS75XChannel : public ext_uart::ExtUARTComponent {
  public:
   void set_parent(SC16IS75XComponent *parent) {
     parent_ = parent;
-    parent_->children.push_back(this);
+    parent_->children_.push_back(this);
   }
   void set_channel(uint8_t channel) { channel_ = channel; }
+  void setup_channel();
+  void dump_channel();
 
   //
   // overriden UARTComponent functions
   //
 
-  /// @brief Flush the input and output fifo
-  /// for more detail refer to implementation refer to @ref page_sc1675x_
-  void flush() override;
-
   /// @brief Should return the number of bytes available in the receiver fifo
   /// @return the number of bytes we can read
-  size_t rx_available() override { return read_uart_register_(SC16IS75X_REG_RXF); }
+  size_t rx_in_fifo() override { return read_uart_register_(SC16IS75X_REG_RXF); }
+
   /// @brief Should return the number of bytes available in the transmitter fifo
   /// @return the number of bytes we can write
-  virtual size_t tx_available() override { return read_uart_register_(SC16IS75X_REG_TXF); }
+  virtual size_t tx_in_fifo() override { return fifo_size() - read_uart_register_(SC16IS75X_REG_TXF); }
+
   /// @brief Read data from the receiver fifo to a buffer
   /// @param buffer the buffer
   /// @param len the number of bytes we want to read
@@ -184,6 +178,7 @@ class SC16IS75XChannel : public external_uart::ExternalUARTComponent {
   virtual bool read_data(uint8_t *buffer, size_t len) override {
     return parent_->read_sc16is75x_register_(SC16IS75X_REG_RHR, channel_, buffer, len) == i2c::ERROR_OK;
   }
+
   /// @brief Write data to the transmitter fifo from a buffer
   /// @param buffer the buffer
   /// @param len the number of bytes we want to write
@@ -191,8 +186,9 @@ class SC16IS75XChannel : public external_uart::ExternalUARTComponent {
   virtual bool write_data(const uint8_t *buffer, size_t len) override {
     return parent_->write_sc16is75x_register_(SC16IS75X_REG_RHR, channel_, buffer, len) == i2c::ERROR_OK;
   }
+
   /// @brief Query the size of the component's fifo
-  /// @return the size
+  /// @return the size of the fifo
   virtual size_t fifo_size() override { return 64; }
 
  protected:
@@ -202,7 +198,6 @@ class SC16IS75XChannel : public external_uart::ExternalUARTComponent {
   void write_uart_register_(int reg_address, uint8_t value);
   void set_line_param_();
   void set_baudrate_();
-  void fifo_enable_(bool enable = true);
 
   SC16IS75XComponent *parent_;
   uint8_t channel_;

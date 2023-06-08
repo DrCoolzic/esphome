@@ -17,7 +17,7 @@ from esphome.const import (
 
 CODEOWNERS = ["@DrCoolZic"]
 DEPENDENCIES = ["i2c"]
-AUTO_LOAD = ["external_uart"]
+AUTO_LOAD = ["sc16is75x"]
 
 wk2132_ns = cg.esphome_ns.namespace("wk2132")
 WK2132Component = wk2132_ns.class_("WK2132Component", cg.Component, i2c.I2CDevice)

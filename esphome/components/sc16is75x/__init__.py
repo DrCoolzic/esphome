@@ -17,7 +17,6 @@ from esphome.const import (
 
 CODEOWNERS = ["@DrCoolZic"]
 DEPENDENCIES = ["i2c"]
-AUTO_LOAD = ["external_uart"]
 
 sc16is75x_ns = cg.esphome_ns.namespace("sc16is75x")
 SC16IS75XComponent = sc16is75x_ns.class_(

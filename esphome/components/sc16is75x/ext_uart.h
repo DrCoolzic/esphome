@@ -1,4 +1,4 @@
-/// @file external_uart.h
+/// @file ext_uart.h
 /// @author @DrCoolzic
 /// @brief interface declaration of an external uart bus
 
@@ -7,7 +7,7 @@
 #include "esphome/components/uart/uart.h"
 
 namespace esphome {
-namespace external_uart {
+namespace ext_uart {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Describes an external (i.e. not in the ESP) UART bus.
@@ -19,7 +19,7 @@ namespace external_uart {
 /// @ref uart::UARTComponent::available(), @ref uart::UARTComponent::flush(). TODO ?
 /// **Note that this class a virtual class**
 ///////////////////////////////////////////////////////////////////////////////
-class ExternalUARTComponent : public uart::UARTComponent {
+class ExtUARTComponent : public uart::UARTComponent {
  public:
   //
   // we implement the UARTComponent pure virtual methods
@@ -43,22 +43,18 @@ class ExternalUARTComponent : public uart::UARTComponent {
 
   /// @brief Return the number of bytes available for reading from the serial port.
   /// @return the number of bytes available in the receiver fifo
-  int available() override { return rx_available(); }
+  int available() override { return rx_in_fifo(); }
 
   // @brief Flush the input and output fifo
   virtual void flush();
 
-  /// @brief This function can be used to test the uart bus
-  /// @param safe if true we use safe write method by calling the tx_available()
-  void test_uart_(bool safe);
-
-  /// @brief Should return the number of bytes available in the receiver fifo
+  /// @brief Should return the number of bytes available in receive fifo
   /// @return the number of bytes we can read
-  virtual size_t rx_available() = 0;
+  virtual size_t rx_in_fifo() = 0;
 
-  /// @brief Should return the number of bytes available in the transmitter fifo
-  /// @return the number of bytes we can write
-  virtual size_t tx_available() = 0;
+  /// @brief Should return the number of bytes still in the transmitter fifo
+  /// @return the number of bytes not yet sent
+  virtual size_t tx_in_fifo() = 0;
 
   /// @brief Read data from the receiver fifo to a buffer
   /// @param buffer the buffer
@@ -75,16 +71,21 @@ class ExternalUARTComponent : public uart::UARTComponent {
   /// @brief Query the size of the component's fifo
   /// @return the size
   virtual size_t fifo_size() = 0;
+  size_t buffered() { return peek_buffer_.empty ? 0 : 1; }
 
  protected:
   /// @brief cannot happen with external uart
   void check_logger_conflict() override {}
+  bool safe_{true};
 
   struct {
     uint8_t data;
     bool empty{true};
   } peek_buffer_;
+
+  void uart_send_test(uint8_t channel);
+  void uart_receive_test(uint8_t channel);
 };
 
-}  // namespace external_uart
+}  // namespace ext_uart
 }  // namespace esphome

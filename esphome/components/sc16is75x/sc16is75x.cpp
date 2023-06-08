@@ -9,45 +9,25 @@ namespace sc16is75x {
 
 static const char *const TAG = "sc16is75x";
 
-/*! @page page_sc1675x_ SC16IS75XComponent documentation
-This page gives some information about the details of implementation of
-the SC16IS75XComponent class for ESPHome.
+/// @brief Converts the parity enum to a string
+/// @param parity enum
+/// @return the string
+const char *parity2string(uart::UARTParityOptions parity) {
+  using namespace uart;
+  switch (parity) {
+    case UART_CONFIG_PARITY_NONE:
+      return "NONE";
+    case UART_CONFIG_PARITY_EVEN:
+      return "EVEN";
+    case UART_CONFIG_PARITY_ODD:
+      return "ODD";
+    default:
+      return "UNKNOWN";
+  }
+}
 
-@section sc16is75x_component_ SC16IS75XComponent class
-This class describes a SC16IS75X I²C component. It derives from two @ref esphome classes:
-- The @ref Virtual Component class. From this class we redefine the @ref Component::setup(),
-  @ref Component::dump_config() and @ref Component::get_setup_priority() methods
-- The @ref i2c::I2CDevice class. From which we use some methods
-
-We have two related class :
-- The @ref SC16IS75XChannel class that takes cares of the UART related functions
-- The @ref SC16IS75XGPIOPin class
-  that takes care of the details for the GPIO pins of the component.
-
-All call to the i2c::I2CDevice register read and write are funneled through two functions:
-- The SC16IS75XComponent::read_sc16is75x_register_() and
-- The SC16IS75XComponent::write_sc16is75x_register_().
-
-  @section sc16is75x_uart_ SC16IS75XChannel (UART) class
-
-  @TODO
-
-@subsection fl_ss_ void SC16IS75XChannel::flush() {
-This method is definitively the worse of all UART methods !!!
-It is used apparently to flush the output buffer by waiting for all
-characters to be sent? \n
-If we refer to Serial.flush() in Arduino we have:
-  - Waits for the transmission of outgoing serial data to complete.
-  - Prior to Arduino 1.0, this instead removed any buffered incoming serial data!
-
-While flushing an input fifo make sense, flushing an output fifo is strange!
-The current implementation does the following: reset both the input and output fifo
-
-
-@section sc16is75x_gpio_ SC16IS75XGPIOPin (GPIO) class
-  @TODO
-
-*/
+// convert byte to binary string
+inline const char *i2s_(uint8_t val) { return std::bitset<8>(val).to_string().c_str(); }
 
 ///////////////////////////////////////////////////////////////////////////////
 // The SC16IS75XComponent methods
@@ -60,11 +40,11 @@ i2c::ErrorCode SC16IS75XComponent::write_sc16is75x_register_(uint8_t reg_address
   auto error = this->write_register(sub, buffer, len);
   if (error == i2c::ERROR_OK) {
     this->status_clear_warning();
-    ESP_LOGVV(TAG, "write_sc16is75x_register_(%s, %X [0x%02X], b=%02X [%s], l=%d): I2C code %d",
+    ESP_LOGVV(TAG, "write_sc16is75x_register_(%s, %X [0x%02X], b=%02X [%s], len=%d): I2C code %d",
               write_reg_to_str[reg_address], channel, sub, *buffer, i2s_(*buffer), len, (int) error);
   } else {  // error
     this->status_set_warning();
-    ESP_LOGE(TAG, "write_sc16is75x_register_(%s, %X [0x%02X], b=%02X [%s], l=%d): I2C code %d",
+    ESP_LOGE(TAG, "write_sc16is75x_register_(%s, %X [0x%02X], b=%02X [%s], len=%d): I2C code %d",
              write_reg_to_str[reg_address], channel, sub, *buffer, i2s_(*buffer), len, (int) error);
   }
   return error;
@@ -76,11 +56,11 @@ i2c::ErrorCode SC16IS75XComponent::read_sc16is75x_register_(uint8_t reg_address,
   auto error = this->read_register(sub, buffer, len);
   if ((error == i2c::ERROR_OK)) {
     this->status_clear_warning();
-    ESP_LOGVV(TAG, "read_sc16is75x_register_(%s, %X [0x%02X], b=%02X [%s], l=%d): I2C code %d",
+    ESP_LOGVV(TAG, "read_sc16is75x_register_(%s, %X [0x%02X], b=%02X [%s], len=%d): I2C code %d",
               read_reg_to_str[reg_address], channel, sub, *buffer, i2s_(*buffer), len, (int) error);
   } else {  // error
     this->status_set_warning();
-    ESP_LOGE(TAG, "read_sc16is75x_register_(%s, %X [0x%02X], b=%02X [%s], l=%d): I2C code %d",
+    ESP_LOGE(TAG, "read_sc16is75x_register_(%s, %X [0x%02X], b=%02X [%s], len=%d): I2C code %d",
              read_reg_to_str[reg_address], channel, sub, *buffer, i2s_(*buffer), len, (int) error);
   }
   return error;
@@ -91,7 +71,6 @@ inline void SC16IS75XComponent::write_io_register_(int reg_address, uint8_t valu
 }
 
 inline uint8_t SC16IS75XComponent::read_io_register_(int reg_address) {
-  uint8_t buffer_ = 0;  // clear before just for debug purpose
   this->read_sc16is75x_register_(reg_address, 0, &buffer_, 1);
   return buffer_;
 }
@@ -126,7 +105,7 @@ void SC16IS75XComponent::set_pin_direction_(uint8_t pin, gpio::Flags flags) {
 //
 void SC16IS75XComponent::setup() {
   const char *model_name = (model_ == SC16IS750_MODEL) ? "SC16IS750" : "SC16IS752";
-  ESP_LOGCONFIG(TAG, "Setting up SC16IS75X:%d with %d UARTs...", get_num_(), (int) children.size());
+  ESP_LOGCONFIG(TAG, "Setting up SC16IS75X:%d with %d UARTs...", get_num_(), (int) children_.size());
   // we read anything just to test communication
   if (read_sc16is75x_register_(0, 0, &buffer_, 1) != i2c::ERROR_OK) {
     ESP_LOGCONFIG(TAG, "%s failed", model_name);
@@ -134,18 +113,13 @@ void SC16IS75XComponent::setup() {
   }
 
   // we can now setup our children
-  for (auto i = 0; i < children.size(); i++) {
-    ESP_LOGCONFIG(TAG, "  Setting up UART %d:%d...", get_num_(), i);
-    children[i]->fifo_enable_(true);
-    children[i]->set_baudrate_();
-    children[i]->set_line_param_();
-  }
-  // TODO do we need some GPIO pin init ?
+  for (auto i = 0; i < children_.size(); i++)
+    children_[i]->setup_channel();
 }
 
 void SC16IS75XComponent::dump_config() {
   const char *model_name = (model_ == SC16IS750_MODEL) ? "SC16IS750" : "SC16IS752";
-  ESP_LOGCONFIG(TAG, "SC16IS75X:%d with %d UARTs...", get_num_(), (int) children.size());
+  ESP_LOGCONFIG(TAG, "SC16IS75X:%d with %d UARTs...", get_num_(), (int) children_.size());
   ESP_LOGCONFIG(TAG, "  model %s", model_name);
   ESP_LOGCONFIG(TAG, "  crystal %d", crystal_);
 
@@ -154,57 +128,14 @@ void SC16IS75XComponent::dump_config() {
     ESP_LOGE(TAG, "Communication with %s failed!", model_name);
   }
 
-  for (auto i = 0; i < children.size(); i++) {
-    ESP_LOGCONFIG(TAG, "  UART bus %d:%d...", get_num_(), i);
-    ESP_LOGCONFIG(TAG, "    baudrate %d Bd", children[i]->baud_rate_);
-    ESP_LOGCONFIG(TAG, "    data_bits %d", children[i]->data_bits_);
-    ESP_LOGCONFIG(TAG, "    stop_bits %d", children[i]->stop_bits_);
-    ESP_LOGCONFIG(TAG, "    parity %s", this->parity_to_str(children[i]->parity_));
-  }
-}
-
-void SC16IS75XComponent::loop() {
-  //
-  // This loop is used only if the sc16is75x component is in test mode
-  //
-  if (test_mode_ == 0)
-    return;
-
-  static int32_t end_time = 0;
-  ESP_LOGI(TAG, "time between loop call %d ms...", millis() - end_time);
-  end_time = millis();
-
-  switch (test_mode_) {
-    case 1:
-      if (children.size() > 0)
-        for (size_t i = 0; i < children.size(); i++) {
-          children[i]->test_uart_(true);
-        }
-      // test_io__ TODO
-      break;
-
-    case 2:
-      // TODO
-      break;
-  }
+  for (auto i = 0; i < children_.size(); i++)
+    children_[i]->dump_channel();
+  initialized_ = true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // The SC16IS75XChannel methods
 ///////////////////////////////////////////////////////////////////////////////
-
-/// **IMPLEMENTATION DETAILS** - This function is the worse of all UART functions !!!
-///
-/// If we refer to Serial.flush() in Arduino it says: ** Waits for the transmission
-/// of outgoing serial data to complete. (Prior to Arduino 1.0, this instead removed
-/// any buffered incoming serial data.). **
-///
-/// Therefore my implementation is a mixture of the two behaviors described above:
-/// - it immediately flush the receiver and the transmitter fifo
-void SC16IS75XChannel::flush() {
-  ESP_LOGW(TAG, "This functions is not safe");
-  fifo_enable_(true);  // this will clear the 2 fifo
-}
 
 uint8_t SC16IS75XChannel::read_uart_register_(int reg_address) {
   parent_->buffer_ = 0;  // for debug help
@@ -216,14 +147,22 @@ void SC16IS75XChannel::write_uart_register_(int reg_address, uint8_t value) {
   parent_->write_sc16is75x_register_(reg_address, channel_, &value, 1);
 }
 
-/// @brief Enable/Disable FIFOs.
-/// Enabling FIFOs and also reseting the two FIFOs
-/// @param enable true -> enable, false -> disable
-void SC16IS75XChannel::fifo_enable_(bool enable) {
-  uint8_t fcr;
-  fcr = enable ? 0x3 : 0x0;
+void SC16IS75XChannel::setup_channel() {
+  ESP_LOGCONFIG(TAG, "  Setting up UART %d:%d...", parent_->get_num_(), channel_);
+
+  // reset and enable the fifo
+  uint8_t fcr = 0x7;
   write_uart_register_(SC16IS75X_REG_FCR, fcr);
-  ESP_LOGV(TAG, "UART %d:%d fifo %s", parent_->get_num_(), channel_, enable ? "enabled" : "disabled");
+  set_baudrate_();
+  set_line_param_();
+}
+
+void SC16IS75XChannel::dump_channel() {
+  ESP_LOGCONFIG(TAG, "  UART bus %d:%d...", parent_->get_num_(), channel_);
+  ESP_LOGCONFIG(TAG, "    baudrate %d Bd", baud_rate_);
+  ESP_LOGCONFIG(TAG, "    data_bits %d", data_bits_);
+  ESP_LOGCONFIG(TAG, "    stop_bits %d", stop_bits_);
+  ESP_LOGCONFIG(TAG, "    parity %s", parity_to_str(parity_));
 }
 
 void SC16IS75XChannel::set_line_param_() {
@@ -325,6 +264,30 @@ std::string SC16IS75XGPIOPin::dump_summary() const {
   snprintf(buffer, sizeof(buffer), "%u via SC16IS75X:%d", pin_, parent_->get_num_());
   return buffer;
 }
+
+///////////////////////////////////////////////////////////////////////////////
+/// TEST FUNCTIONS BELOW
+///////////////////////////////////////////////////////////////////////////////
+#define TEST_COMPONENT
+#ifdef TEST_COMPONENT
+void SC16IS75XComponent::loop() {
+  //
+  // This loop is used only if the wk2132 component is in test mode
+  //
+  if (!initialized_ || !test_mode_)
+    return;
+
+  static int32_t loop_time = 0;
+  ESP_LOGI(TAG, "%d ms since last loop call ...", millis() - loop_time);
+  loop_time = millis();
+
+  for (size_t i = 0; i < children_.size(); i++) {
+    children_[i]->uart_send_test(i);
+    children_[i]->uart_receive_test(i);
+  }
+  ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
+}
+#endif
 
 }  // namespace sc16is75x
 }  // namespace esphome

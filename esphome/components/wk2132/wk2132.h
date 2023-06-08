@@ -7,7 +7,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/uart/uart.h"
-#include "esphome/components/external_uart/external_uart.h"
+#include "esphome/components/sc16is75x/ext_uart.h"
 
 namespace esphome {
 namespace wk2132 {
@@ -53,7 +53,7 @@ class WK2132Channel;                  // forward declaration
 class WK2132Component : public Component, public i2c::I2CDevice {
  public:
   // we store the base_address and we increment number of instances
-  WK2132Component() : base_address_{address_} { ++count_; }
+  WK2132Component() : base_address_{address_} { ++counter_; }
   void set_crystal(uint32_t crystal) { crystal_ = crystal; }
   void set_test_mode(int test_mode) { test_mode_ = test_mode; }
 
@@ -93,24 +93,25 @@ class WK2132Component : public Component, public i2c::I2CDevice {
   int test_mode_{0};
   uint8_t data_;                 // temporary buffer
   /// @brief the list of WK2132Channel UART children
-  std::vector<WK2132Channel *> children{};
-  static int count_;   // count number of instances
-  int num_{count_};    // current count
-  bool page1_{false};  // set to true when in page1 mode
+  std::vector<WK2132Channel *> children_{};
+  static int counter_;       // count number of instances
+  int num_{counter_};        // current counter
+  bool page1_{false};        // set to true when in page1 mode
+  bool initialized_{false};  // true when initialized finished
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Describes a UART channel of a WK2132 I²C component.
 ///
-/// This class derives from the @ref external_uart::ExternalUARTComponent class.
-/// As the @ref external_uart::ExternalUARTComponent is a pure virtual class we need to
+/// This class derives from the @ref external_uart::ExtUARTComponent class.
+/// As the @ref external_uart::ExtUARTComponent is a pure virtual class we need to
 /// implement the following functions : @ref
 ///////////////////////////////////////////////////////////////////////////////
-class WK2132Channel : public external_uart::ExternalUARTComponent {
+class WK2132Channel : public ext_uart::ExtUARTComponent {
  public:
   void set_parent(WK2132Component *parent) {
     parent_ = parent;
-    parent_->children.push_back(this);
+    parent_->children_.push_back(this);
   }
   void set_channel(uint8_t channel) { channel_ = channel; }
   void setup_channel();
@@ -121,11 +122,11 @@ class WK2132Channel : public external_uart::ExternalUARTComponent {
 
   /// @brief Should return the number of bytes available in the receiver fifo
   /// @return the number of bytes we can read
-  size_t rx_available() override;
+  size_t rx_in_fifo() override;
 
   /// @brief Should return the number of bytes available in the transmitter fifo
   /// @return the number of bytes we can write
-  virtual size_t tx_available() override;
+  size_t tx_in_fifo() override;
 
   /// @brief Read data from the receiver fifo to a buffer
   /// @param buffer the buffer
