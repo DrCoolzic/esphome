@@ -32,9 +32,11 @@ const uint8_t SC16IS75X_REG_IOP = 0X0B;  // 58 I/O pin state register (r/w)
 const uint8_t SC16IS75X_REG_IOI = 0X0C;  // 60 I/O interrupt enable register (r/w)
 const uint8_t SC16IS75X_REG_IOC = 0X0E;  // 70 I/O pin control register (r/w)
 const uint8_t SC16IS75X_REG_XFR = 0X0F;  // 78 extra features register (r/w)
+
 // Special registers only if LCR[7] == 1 & LCR != 0xBF
 const uint8_t SC16IS75X_REG_DLL = 0x00;  // divisor latch lsb (r/w) only if LCR[7]=1 & LCR != 0xBF
 const uint8_t SC16IS75X_REG_DLH = 0X01;  // divisor latch msb (r/w) only if LCR[7]=1 & LCR != 0xBF
+
 // Enhanced registers only if LCR == 0xBF
 const uint8_t SC16IS75X_REG_EFR = 0X02;  // enhanced features register only if LCR=0xBF (1011 1111)
 const uint8_t SC16IS75X_REG_XO1 = 0X04;  // Xon1 word (rw) only if LCR=0xBF (1011 1111)
@@ -42,15 +44,8 @@ const uint8_t SC16IS75X_REG_XO2 = 0X05;  // Xon2 word (rw) only if LCR=0xBF (101
 const uint8_t SC16IS75X_REG_XF1 = 0X06;  // Xoff1 word (rw) only if LCR=0xBF (1011 1111)
 const uint8_t SC16IS75X_REG_XF2 = 0X07;  // Xoff2 word (rw) only if LCR=0xBF (1011 1111)
 
-// for debug messages ...
-static const char *write_reg_to_str[] = {"THR",   "IER",   "FCR", "LCR", "MCR", "LSR", "TCR", "SPR",
-                                         "_INV_", "_INV_", "IOD", "IO",  "IOI", "IOC", "EFR"};
-static const char *read_reg_to_str[] = {"RHR", "IER", "IIR", "LCR", "MCR", "LSR", "MSR", "SPR",
-                                        "TXF", "RXF", "IOD", "IOP", "IOI", "IOC", "EFR"};
-
-/// @brief supported chip models
-enum SC16IS75XComponentModel { SC16IS750_MODEL, SC16IS752_MODEL };
-class SC16IS75XChannel;  // forward declaration
+enum SC16IS75XComponentModel { SC16IS750_MODEL, SC16IS752_MODEL };  ///< chip models
+class SC16IS75XChannel;                                             ///< forward declaration
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief This class describes a SC16IS75X I²C component.
@@ -67,7 +62,7 @@ class SC16IS75XChannel;  // forward declaration
 ///////////////////////////////////////////////////////////////////////////////
 class SC16IS75XComponent : public Component, public i2c::I2CDevice {
  public:
-  SC16IS75XComponent() { ++count_; }
+  SC16IS75XComponent() { ++count_; }  ///< ctor
   void set_model(SC16IS75XComponentModel model) { model_ = model; }
   void set_crystal(uint32_t crystal) { crystal_ = crystal; }
   void set_test_mode(int test_mode) { test_mode_ = test_mode; }
@@ -102,12 +97,12 @@ class SC16IS75XComponent : public Component, public i2c::I2CDevice {
   /// @return the i2c error codes
   i2c::ErrorCode read_sc16is75x_register_(uint8_t reg_address, uint8_t channel, uint8_t *buffer, size_t len);
 
-  /// @brief Use to read GPIO related register. Channel 0 is used (not significant)
+  /// @brief Use to read GPIO related register. Channel 0 is used (as not significant)
   /// @param reg_address the register address
   /// @return the byte read from the register
   uint8_t read_io_register_(int reg_address);
 
-  /// @brief Use to write GPIO related register. Channel 0 is used (not significant)
+  /// @brief Use to write GPIO related register. Channel 0 is used (as not significant)
   /// @param reg_address the register address
   /// @param value the value to write
   void write_io_register_(int reg_address, uint8_t value);
@@ -121,12 +116,8 @@ class SC16IS75XComponent : public Component, public i2c::I2CDevice {
   /// Helper function to set the pin mode of a pin.
   void set_pin_direction_(uint8_t pin, gpio::Flags flags);
 
-  // the register address is composed of the register value and the channel value.
-  // note that for I/O related register the chanel value is not significant
-  inline uint8_t subaddress_(uint8_t reg_addr, uint8_t channel = 0) { return (reg_addr << 3 | channel << 1); }
-
   bool initialized_{false};
-  int get_num_() const { return num_; }
+  int get_num_() const { return num_; }  ///< get instance number (auto counting)
 
   /// pin config mask: 1 means OUTPUT, 0 means INPUT
   uint8_t pin_config_{0x00};
@@ -136,24 +127,25 @@ class SC16IS75XComponent : public Component, public i2c::I2CDevice {
   uint8_t input_state_{0x00};
 
   SC16IS75XComponentModel model_{SC16IS752_MODEL};  ///< model of the component
-  uint32_t crystal_{3072000};                       ///< crystal default for SC16IS752
-  uint8_t buffer_{0};                               /// one byte buffer
+  uint32_t crystal_{3072000};                       ///< default crystal for SC16IS752
+  uint8_t buffer_{0};                               ///< one byte buffer
   std::vector<SC16IS75XChannel *> children_{};      ///< the list of SC16IS75XChannel UART children
   static int count_;                                ///< count number of instances
   int num_{count_};                                 ///< store current count
-  int test_mode_{0};
+  int test_mode_{0};                                ///< test_mode value (0 no test)
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Describes the UART part of a SC16IS75X I²C component.
 ///
-/// This class derives from the @ref esphome @ref external_uart::ExtUARTComponent class.
+/// This class derives from the @ref external_uart::ExtUARTComponent virtual class.
+/// we must therefore provide several methods for the virtual class
 ///////////////////////////////////////////////////////////////////////////////
 class SC16IS75XChannel : public ext_uart::ExtUARTComponent {
  public:
   void set_parent(SC16IS75XComponent *parent) {
-    parent_ = parent;
-    parent_->children_.push_back(this);
+    parent_ = parent;                    // our parent
+    parent_->children_.push_back(this);  // add ourself in children list
   }
   void set_channel(uint8_t channel) { channel_ = channel; }
   void setup_channel();
@@ -184,7 +176,7 @@ class SC16IS75XChannel : public ext_uart::ExtUARTComponent {
   /// @param len the number of bytes we want to write
   /// @return true if succeed false otherwise
   virtual bool write_data(const uint8_t *buffer, size_t len) override {
-    return parent_->write_sc16is75x_register_(SC16IS75X_REG_RHR, channel_, buffer, len) == i2c::ERROR_OK;
+    return parent_->write_sc16is75x_register_(SC16IS75X_REG_THR, channel_, buffer, len) == i2c::ERROR_OK;
   }
 
   /// @brief Query the size of the component's fifo
@@ -194,6 +186,7 @@ class SC16IS75XChannel : public ext_uart::ExtUARTComponent {
  protected:
   friend class SC16IS75XComponent;
 
+  // helpers
   uint8_t read_uart_register_(int reg_address);
   void write_uart_register_(int reg_address, uint8_t value);
   void set_line_param_();

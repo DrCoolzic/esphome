@@ -29,49 +29,59 @@ const char *parity2string(uart::UARTParityOptions parity) {
 // convert byte to binary string
 inline const char *i2s_(uint8_t val) { return std::bitset<8>(val).to_string().c_str(); }
 
+// for debug messages ...
+static const char *write_reg_to_str[] = {"THR",   "IER",   "FCR", "LCR", "MCR", "LSR", "TCR", "SPR",
+                                         "_INV_", "_INV_", "IOD", "IO",  "IOI", "IOC", "EFR"};
+static const char *read_reg_to_str[] = {"RHR", "IER", "IIR", "LCR", "MCR", "LSR", "MSR", "SPR",
+                                        "TXF", "RXF", "IOD", "IOP", "IOI", "IOC", "EFR"};
+
+// the register address is composed of the register value and the channel value.
+// note that for I/O related register the chanel value is not significant
+inline static uint8_t reg_address(uint8_t reg_number, uint8_t channel = 0) { return (reg_number << 3 | channel << 1); }
+
 ///////////////////////////////////////////////////////////////////////////////
 // The SC16IS75XComponent methods
 ///////////////////////////////////////////////////////////////////////////////
 int SC16IS75XComponent::count_{0};  // init static count
 
-i2c::ErrorCode SC16IS75XComponent::write_sc16is75x_register_(uint8_t reg_address, uint8_t channel,
-                                                             const uint8_t *buffer, size_t len) {
-  auto sub = this->subaddress_(reg_address, channel);
+i2c::ErrorCode SC16IS75XComponent::write_sc16is75x_register_(uint8_t reg_number, uint8_t channel, const uint8_t *buffer,
+                                                             size_t len) {
+  auto sub = reg_address(reg_number, channel);
   auto error = this->write_register(sub, buffer, len);
   if (error == i2c::ERROR_OK) {
     this->status_clear_warning();
     ESP_LOGVV(TAG, "write_sc16is75x_register_(%s, %X [0x%02X], b=%02X [%s], len=%d): I2C code %d",
-              write_reg_to_str[reg_address], channel, sub, *buffer, i2s_(*buffer), len, (int) error);
+              write_reg_to_str[reg_number], channel, sub, *buffer, i2s_(*buffer), len, (int) error);
   } else {  // error
     this->status_set_warning();
     ESP_LOGE(TAG, "write_sc16is75x_register_(%s, %X [0x%02X], b=%02X [%s], len=%d): I2C code %d",
-             write_reg_to_str[reg_address], channel, sub, *buffer, i2s_(*buffer), len, (int) error);
+             write_reg_to_str[reg_number], channel, sub, *buffer, i2s_(*buffer), len, (int) error);
   }
   return error;
 }
 
-i2c::ErrorCode SC16IS75XComponent::read_sc16is75x_register_(uint8_t reg_address, uint8_t channel, uint8_t *buffer,
+i2c::ErrorCode SC16IS75XComponent::read_sc16is75x_register_(uint8_t reg_number, uint8_t channel, uint8_t *buffer,
                                                             size_t len) {
-  auto sub = this->subaddress_(reg_address, channel);
+  auto sub = reg_address(reg_number, channel);
   auto error = this->read_register(sub, buffer, len);
   if ((error == i2c::ERROR_OK)) {
     this->status_clear_warning();
     ESP_LOGVV(TAG, "read_sc16is75x_register_(%s, %X [0x%02X], b=%02X [%s], len=%d): I2C code %d",
-              read_reg_to_str[reg_address], channel, sub, *buffer, i2s_(*buffer), len, (int) error);
+              read_reg_to_str[reg_number], channel, sub, *buffer, i2s_(*buffer), len, (int) error);
   } else {  // error
     this->status_set_warning();
     ESP_LOGE(TAG, "read_sc16is75x_register_(%s, %X [0x%02X], b=%02X [%s], len=%d): I2C code %d",
-             read_reg_to_str[reg_address], channel, sub, *buffer, i2s_(*buffer), len, (int) error);
+             read_reg_to_str[reg_number], channel, sub, *buffer, i2s_(*buffer), len, (int) error);
   }
   return error;
 }
 
-inline void SC16IS75XComponent::write_io_register_(int reg_address, uint8_t value) {
-  this->write_sc16is75x_register_(reg_address, 0, &value, 1);
+inline void SC16IS75XComponent::write_io_register_(int reg_number, uint8_t value) {
+  this->write_sc16is75x_register_(reg_number, 0, &value, 1);
 }
 
-inline uint8_t SC16IS75XComponent::read_io_register_(int reg_address) {
-  this->read_sc16is75x_register_(reg_address, 0, &buffer_, 1);
+inline uint8_t SC16IS75XComponent::read_io_register_(int reg_number) {
+  this->read_sc16is75x_register_(reg_number, 0, &buffer_, 1);
   return buffer_;
 }
 
@@ -105,7 +115,8 @@ void SC16IS75XComponent::set_pin_direction_(uint8_t pin, gpio::Flags flags) {
 //
 void SC16IS75XComponent::setup() {
   const char *model_name = (model_ == SC16IS750_MODEL) ? "SC16IS750" : "SC16IS752";
-  ESP_LOGCONFIG(TAG, "Setting up SC16IS75X:%d with %d UARTs...", get_num_(), (int) children_.size());
+  ESP_LOGCONFIG(TAG, "Setting up SC16IS75X:%d i2c_addr @%02X with %d UARTs...", get_num_(), address_,
+                (int) children_.size());
   // we read anything just to test communication
   if (read_sc16is75x_register_(0, 0, &buffer_, 1) != i2c::ERROR_OK) {
     ESP_LOGCONFIG(TAG, "%s failed", model_name);
@@ -137,14 +148,14 @@ void SC16IS75XComponent::dump_config() {
 // The SC16IS75XChannel methods
 ///////////////////////////////////////////////////////////////////////////////
 
-uint8_t SC16IS75XChannel::read_uart_register_(int reg_address) {
+uint8_t SC16IS75XChannel::read_uart_register_(int reg_number) {
   parent_->buffer_ = 0;  // for debug help
-  parent_->read_sc16is75x_register_(reg_address, channel_, &parent_->buffer_, 1);
+  parent_->read_sc16is75x_register_(reg_number, channel_, &parent_->buffer_, 1);
   return parent_->buffer_;
 }
 
-void SC16IS75XChannel::write_uart_register_(int reg_address, uint8_t value) {
-  parent_->write_sc16is75x_register_(reg_address, channel_, &value, 1);
+void SC16IS75XChannel::write_uart_register_(int reg_number, uint8_t value) {
+  parent_->write_sc16is75x_register_(reg_number, channel_, &value, 1);
 }
 
 void SC16IS75XChannel::setup_channel() {
@@ -283,7 +294,7 @@ void SC16IS75XComponent::loop() {
 
   for (size_t i = 0; i < children_.size(); i++) {
     children_[i]->uart_send_test(i);
-    children_[i]->uart_receive_test(i);
+    children_[i]->uart_receive_test(i, test_mode_ > 1);
   }
   ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
 }
