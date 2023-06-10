@@ -81,7 +81,7 @@ If we refer to Serial.flush() in Arduino it says: ** Waits for the transmission
 of outgoing serial data to complete. (Prior to Arduino 1.0, this instead removed
 any buffered incoming serial data.). **
 
-The function waits until all characters inside the fifo have been sent.
+The method waits until all characters inside the fifo have been sent.
 Timeout  after 100 ms
 
 Typical usage see @ref wa_ss_
@@ -161,7 +161,7 @@ void ExtUARTComponent::flush() {
 #define TEST_COMPONENT
 #ifdef TEST_COMPONENT
 
-class Increment {  // A increment "Functor" (A class object that acts like a function with state!)
+class Increment {  // A increment "Functor" (A class object that acts like a method with state!)
  public:
   Increment() : i_(0) {}
   uint8_t operator()() { return i_++; }
@@ -187,7 +187,7 @@ void print_buffer(std::vector<uint8_t> buffer) {
 }
 
 /// @brief test the write_array method
-void ExtUARTComponent::uart_send_test(uint8_t channel) {
+void ExtUARTComponent::uart_send_test(char *preamble) {
   auto start_exec = millis();
   uint8_t to_send = fifo_size() - tx_in_fifo();
   uint8_t to_flush = tx_in_fifo();  // byte in buffer before execution
@@ -199,13 +199,13 @@ void ExtUARTComponent::uart_send_test(uint8_t channel) {
     generate(output_buffer.begin(), output_buffer.end(), Increment());  // fill with incrementing number
     output_buffer[0] = to_send;                     // we send as the first byte the length of the buffer
     this->write_array(&output_buffer[0], to_send);  // we send the buffer
-    ESP_LOGI(TAG, "Channel %d: need flushing %d, remains %d => sending %d bytes - exec time %d ms ...", channel,
-             to_flush, remains, to_send, millis() - start_exec);
+    ESP_LOGI(TAG, "%s pre flushing %d, remains %d => sending %d bytes - exec time %d ms ...", preamble, to_flush,
+             remains, to_send, millis() - start_exec);
   }
 }
 
 /// @brief test read_array method
-void ExtUARTComponent::uart_receive_test(uint8_t channel, bool print_buf) {
+void ExtUARTComponent::uart_receive_test(char *preamble, bool print_buf) {
   auto start_exec = millis();
   bool status = true;
   uint8_t to_read = rx_in_fifo();
@@ -216,8 +216,8 @@ void ExtUARTComponent::uart_receive_test(uint8_t channel, bool print_buf) {
     if (print_buf)
       print_buffer(buffer);
   }
-  ESP_LOGI(TAG, "Channel %d: %d bytes received status %s - exec time %d ms ...", channel, to_read,
-           status ? "OK" : "ERROR", millis() - start_exec);
+  ESP_LOGI(TAG, "%s => %d bytes received status %s - exec time %d ms ...", preamble, to_read, status ? "OK" : "ERROR",
+           millis() - start_exec);
 }
 #endif
 
