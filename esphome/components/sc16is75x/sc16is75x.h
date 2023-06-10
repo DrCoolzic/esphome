@@ -56,7 +56,7 @@ class SC16IS75XChannel;                                             ///< forward
 /// - The @ref i2c::I2CDevice class. From which we use some methods
 ///
 /// We have two related class :
-/// - The @ref SC16IS75XChannel class that takes cares of the UART related functions
+/// - The @ref SC16IS75XChannel class that takes cares of the UART related methods
 /// - The @ref SC16IS75XGPIOPin class
 ///   that takes care of the details for the GPIO pins of the component.
 ///////////////////////////////////////////////////////////////////////////////
@@ -68,7 +68,7 @@ class SC16IS75XComponent : public Component, public i2c::I2CDevice {
   void set_test_mode(int test_mode) { test_mode_ = test_mode; }
 
   //
-  //  override Component functions
+  //  override Component methods
   //
 
   void setup() override;
@@ -81,7 +81,7 @@ class SC16IS75XComponent : public Component, public i2c::I2CDevice {
   friend class SC16IS75XChannel;
   friend class SC16IS75XGPIOPin;
 
-  /// @brief All write calls to I2C registers are funneled through this function
+  /// @brief All write calls to I2C registers are funneled through this method
   /// @param reg_address the register address
   /// @param channel the channel number. Only significant for UART registers
   /// @param buffer pointer to the buffer
@@ -89,7 +89,7 @@ class SC16IS75XComponent : public Component, public i2c::I2CDevice {
   /// @return the i2c error codes
   i2c::ErrorCode write_sc16is75x_register_(uint8_t reg_address, uint8_t channel, const uint8_t *buffer, size_t len);
 
-  /// @brief All read calls to I2C registers are funneled through this function
+  /// @brief All read calls to I2C registers are funneled through this method
   /// @param reg_address the register address
   /// @param channel the channel number. Only significant for UART registers
   /// @param buffer pointer to the buffer
@@ -107,13 +107,13 @@ class SC16IS75XComponent : public Component, public i2c::I2CDevice {
   /// @param value the value to write
   void write_io_register_(int reg_address, uint8_t value);
 
-  /// Helper function to read the value of a pin.
+  /// Helper method to read the value of a pin.
   bool read_pin_val_(uint8_t pin);
 
-  /// Helper function to write the value of a pin.
+  /// Helper method to write the value of a pin.
   void write_pin_val_(uint8_t pin, bool value);
 
-  /// Helper function to set the pin mode of a pin.
+  /// Helper method to set the pin mode of a pin.
   void set_pin_direction_(uint8_t pin, gpio::Flags flags);
 
   bool initialized_{false};
@@ -152,7 +152,7 @@ class SC16IS75XChannel : public ext_uart::ExtUARTComponent {
   void dump_channel();
 
   //
-  // overriden UARTComponent functions
+  // overriden UARTComponent methods
   //
 
   /// @brief Should return the number of bytes available in the receiver fifo

@@ -48,7 +48,7 @@ class WK2132Channel;                  // forward declaration
 /// - The @ref i2c::I2CDevice class. From which we use some methods
 ///
 /// We have one related class :
-/// - The @ref WK2132Channel class that takes cares of the UART related functions
+/// - The @ref WK2132Channel class that takes cares of the UART related methods
 ///////////////////////////////////////////////////////////////////////////////
 class WK2132Component : public Component, public i2c::I2CDevice {
  public:
@@ -58,7 +58,7 @@ class WK2132Component : public Component, public i2c::I2CDevice {
   void set_test_mode(int test_mode) { test_mode_ = test_mode; }
 
   //
-  //  override Component functions
+  //  override Component methods
   //
 
   void setup() override;
@@ -70,7 +70,7 @@ class WK2132Component : public Component, public i2c::I2CDevice {
   friend class WK2132Channel;
   const char *reg_to_str(int val);
 
-  /// @brief All write calls to I2C registers are funneled through this function
+  /// @brief All write calls to I2C registers are funneled through this method
   /// @param reg_address the register address
   /// @param channel the channel number. Only significant for UART registers
   /// @param buffer pointer to buffer
@@ -78,7 +78,7 @@ class WK2132Component : public Component, public i2c::I2CDevice {
   /// @return the i2c error codes
   void write_wk2132_register_(uint8_t reg_address, uint8_t channel, const uint8_t *buffer, size_t len);
 
-  /// @brief All read calls to I2C registers are funneled through this function
+  /// @brief All read calls to I2C registers are funneled through this method
   /// @param reg_address the register address
   /// @param channel the channel number. Only significant for UART registers
   /// @param buffer buffer pointer
@@ -105,7 +105,7 @@ class WK2132Component : public Component, public i2c::I2CDevice {
 ///
 /// This class derives from the @ref external_uart::ExtUARTComponent class.
 /// As the @ref external_uart::ExtUARTComponent is a pure virtual class we need to
-/// implement the following functions : @ref
+/// implement the following methods : @ref
 ///////////////////////////////////////////////////////////////////////////////
 class WK2132Channel : public ext_uart::ExtUARTComponent {
  public:

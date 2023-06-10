@@ -87,7 +87,7 @@ uint8_t WK2132Component::read_wk2132_register_(uint8_t reg_number, uint8_t chann
 }
 
 //
-// overloaded functions from Component
+// overloaded methods from Component
 //
 void WK2132Component::setup() {
   base_address_ = address_;
@@ -312,12 +312,14 @@ void WK2132Component::loop() {
     return;
 
   static int32_t loop_time = 0;
+  char preamble[64];
   ESP_LOGI(TAG, "%d ms since last loop call ...", millis() - loop_time);
   loop_time = millis();
 
   for (size_t i = 0; i < children_.size(); i++) {
-    children_[i]->uart_send_test(i);
-    children_[i]->uart_receive_test(i);
+    snprintf(preamble, sizeof(preamble), "WK2132_%d_Ch_%d", get_num_(), i);
+    children_[i]->uart_send_test(preamble);
+    children_[i]->uart_receive_test(preamble);
   }
   ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
 }

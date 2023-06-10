@@ -111,7 +111,7 @@ void SC16IS75XComponent::set_pin_direction_(uint8_t pin, gpio::Flags flags) {
 }
 
 //
-// overloaded functions from Component
+// overloaded methods from Component
 //
 void SC16IS75XComponent::setup() {
   const char *model_name = (model_ == SC16IS750_MODEL) ? "SC16IS750" : "SC16IS752";
@@ -287,14 +287,15 @@ void SC16IS75XComponent::loop() {
   //
   if (!initialized_ || !test_mode_)
     return;
-
+  char preamble[64];
   static int32_t loop_time = 0;
   ESP_LOGI(TAG, "%d ms since last loop call ...", millis() - loop_time);
   loop_time = millis();
 
   for (size_t i = 0; i < children_.size(); i++) {
-    children_[i]->uart_send_test(i);
-    children_[i]->uart_receive_test(i, test_mode_ > 1);
+    snprintf(preamble, sizeof(preamble), "SC16IS75X_%d_Ch_%d", get_num_(), i);
+    children_[i]->uart_send_test(preamble);
+    children_[i]->uart_receive_test(preamble, test_mode_ > 1);
   }
   ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
 }

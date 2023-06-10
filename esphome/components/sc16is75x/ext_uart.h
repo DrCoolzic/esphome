@@ -14,7 +14,7 @@ namespace ext_uart {
 ///
 /// Any "external" UART should be able to use this code to implement the required
 /// UARTComponent virtual methods to avoid code duplication. This class
-/// implement the following virtual functions:
+/// implement the following virtual methods:
 /// - @ref uart::UARTComponent::write_array(),
 /// - @ref uart::UARTComponent::read_array(),
 /// - @ref uart::UARTComponent::peek_byte(),
@@ -57,7 +57,7 @@ class ExtUARTComponent : public uart::UARTComponent {
   int available() override { return rx_in_fifo(); }
 
   /// @brief Flush the output fifo. This is the only way to wait until all the bytes
-  /// in the transmit FIFO have been sent. The function timeout after 100 ms. Therefore
+  /// in the transmit FIFO have been sent. The method timeout after 100 ms. Therefore
   /// at very low speed you can't be sure all characters are gone.
   virtual void flush();
 
@@ -83,7 +83,7 @@ class ExtUARTComponent : public uart::UARTComponent {
 
   /// @brief Query the size of the component's fifo.
   /// @n This is the maximum length you can use for the buffer
-  /// during read and write data functions.
+  /// during read and write data methods.
   /// @return the size
   virtual size_t fifo_size() = 0;
 
@@ -98,8 +98,8 @@ class ExtUARTComponent : public uart::UARTComponent {
     bool empty{true};
   } peek_buffer_;  // temporary storage when you peek data
 
-  void uart_send_test(uint8_t channel);
-  void uart_receive_test(uint8_t channel, bool print_buf = true);
+  void uart_send_test(char *preamble);
+  void uart_receive_test(char *preamnle, bool print_buf = true);
 };
 
 }  // namespace ext_uart
