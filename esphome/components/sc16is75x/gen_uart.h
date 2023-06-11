@@ -1,4 +1,4 @@
-/// @file ext_uart.h
+/// @file gen_uart.h
 /// @author @DrCoolzic
 /// @brief interface declaration of an external uart bus
 
@@ -7,7 +7,7 @@
 #include "esphome/components/uart/uart.h"
 
 namespace esphome {
-namespace ext_uart {
+namespace gen_uart {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Describes an "external" (i.e. not on the ESP board) UART bus.
@@ -22,7 +22,7 @@ namespace ext_uart {
 /// - @ref uart::UARTComponent::flush(). TODO ?
 /// @n **Note that this class a pure virtual class**
 ///////////////////////////////////////////////////////////////////////////////
-class ExtUARTComponent : public uart::UARTComponent {
+class GenUARTChannel : public uart::UARTComponent {
  public:
   //
   // we implement the UARTComponent pure virtual methods
@@ -102,5 +102,5 @@ class ExtUARTComponent : public uart::UARTComponent {
   void uart_receive_test(char *preamnle, bool print_buf = true);
 };
 
-}  // namespace ext_uart
+}  // namespace gen_uart
 }  // namespace esphome

@@ -1,19 +1,19 @@
-/// @file ext_uart.cpp
+/// @file gen_uart.cpp
 /// @author @DrCoolzic
 /// @brief external uart implementation
 
-#include "ext_uart.h"
+#include "gen_uart.h"
 
 namespace esphome {
-namespace ext_uart {
+namespace gen_uart {
 
-static const char *const TAG = "ext_uart";
+static const char *const TAG = "gen_uart";
 
-/*! @page page_ext_uart_bus_ ExtUARTComponent documentation
+/*! @page page_gen_uart_bus_ GenUARTChannel documentation
 This page gives some information about the details of implementation of
-the ExtUARTComponent class for ESPHome.
+the GenUARTChannel class for ESPHome.
 
-  @section ext_uart_bus_ ExtUARTComponent (UART) class
+  @section gen_uart_bus_ GenUARTChannel (UART) class
 Unfortunately I have not found any documentation about the uart::UARTDevice and
 uart::UARTComponent classes of @ref ESPHome.
 @n However it seems that both of them are based on equivalent in Arduino library.\n
@@ -89,10 +89,10 @@ Typical usage see @ref wa_ss_
 */
 
 ///////////////////////////////////////////////////////////////////////////////
-// The ExtUARTComponent methods
+// The GenUARTChannel methods
 ///////////////////////////////////////////////////////////////////////////////
 
-bool ExtUARTComponent::read_array(uint8_t *buffer, size_t len) {
+bool GenUARTChannel::read_array(uint8_t *buffer, size_t len) {
   if (len > fifo_size()) {
     ESP_LOGE(TAG, "Read buffer invalid call: requested %d bytes max size %d ...", len, fifo_size());
     return false;
@@ -121,7 +121,7 @@ bool ExtUARTComponent::read_array(uint8_t *buffer, size_t len) {
   return status;
 }
 
-bool ExtUARTComponent::peek_byte(uint8_t *buffer) {
+bool GenUARTChannel::peek_byte(uint8_t *buffer) {
   if (safe_ && peek_buffer_.empty && available() == 0)
     return false;
   if (peek_buffer_.empty) {
@@ -132,7 +132,7 @@ bool ExtUARTComponent::peek_byte(uint8_t *buffer) {
   return true;
 }
 
-void ExtUARTComponent::write_array(const uint8_t *buffer, size_t len) {
+void GenUARTChannel::write_array(const uint8_t *buffer, size_t len) {
   if (len > fifo_size()) {
     ESP_LOGE(TAG, "Write buffer invalid call: requested %d bytes max size %d ...", len, fifo_size());
     len = fifo_size();
@@ -144,7 +144,7 @@ void ExtUARTComponent::write_array(const uint8_t *buffer, size_t len) {
   write_data(buffer, len);
 }
 
-void ExtUARTComponent::flush() {
+void GenUARTChannel::flush() {
   uint32_t start_time = millis();
   while (tx_in_fifo()) {  // wait until buffer empty
     if (millis() - start_time > 100) {
@@ -187,7 +187,7 @@ void print_buffer(std::vector<uint8_t> buffer) {
 }
 
 /// @brief test the write_array method
-void ExtUARTComponent::uart_send_test(char *preamble) {
+void GenUARTChannel::uart_send_test(char *preamble) {
   auto start_exec = millis();
   uint8_t to_send = fifo_size() - tx_in_fifo();
   uint8_t to_flush = tx_in_fifo();  // byte in buffer before execution
@@ -205,7 +205,7 @@ void ExtUARTComponent::uart_send_test(char *preamble) {
 }
 
 /// @brief test read_array method
-void ExtUARTComponent::uart_receive_test(char *preamble, bool print_buf) {
+void GenUARTChannel::uart_receive_test(char *preamble, bool print_buf) {
   auto start_exec = millis();
   bool status = true;
   uint8_t to_read = rx_in_fifo();
@@ -221,5 +221,5 @@ void ExtUARTComponent::uart_receive_test(char *preamble, bool print_buf) {
 }
 #endif
 
-}  // namespace ext_uart
+}  // namespace gen_uart
 }  // namespace esphome

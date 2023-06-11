@@ -7,7 +7,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/uart/uart.h"
-#include "esphome/components/sc16is75x/ext_uart.h"
+#include "esphome/components/sc16is75x/gen_uart.h"
 
 namespace esphome {
 namespace wk2132 {
@@ -103,11 +103,11 @@ class WK2132Component : public Component, public i2c::I2CDevice {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Describes a UART channel of a WK2132 I²C component.
 ///
-/// This class derives from the @ref external_uart::ExtUARTComponent class.
-/// As the @ref external_uart::ExtUARTComponent is a pure virtual class we need to
+/// This class derives from the @ref gen_uart::GenUARTChannel class.
+/// As the @ref gen_uart::GenUARTChannel is a pure virtual class we need to
 /// implement the following methods : @ref
 ///////////////////////////////////////////////////////////////////////////////
-class WK2132Channel : public ext_uart::ExtUARTComponent {
+class WK2132Channel : public gen_uart::GenUARTChannel {
  public:
   void set_parent(WK2132Component *parent) {
     parent_ = parent;

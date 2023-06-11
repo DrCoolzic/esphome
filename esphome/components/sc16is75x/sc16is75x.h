@@ -7,7 +7,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/uart/uart.h"
-#include "ext_uart.h"
+#include "gen_uart.h"
 
 namespace esphome {
 namespace sc16is75x {
@@ -138,10 +138,10 @@ class SC16IS75XComponent : public Component, public i2c::I2CDevice {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Describes the UART part of a SC16IS75X I²C component.
 ///
-/// This class derives from the @ref external_uart::ExtUARTComponent virtual class.
+/// This class derives from the @ref gen_uart::GenUARTChannel virtual class.
 /// we must therefore provide several methods for the virtual class
 ///////////////////////////////////////////////////////////////////////////////
-class SC16IS75XChannel : public ext_uart::ExtUARTComponent {
+class SC16IS75XChannel : public gen_uart::GenUARTChannel {
  public:
   void set_parent(SC16IS75XComponent *parent) {
     parent_ = parent;                    // our parent
