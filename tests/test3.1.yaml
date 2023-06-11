@@ -218,6 +218,20 @@ mpr121:
   address: 0x5A
 
 binary_sensor:
+  - platform: gpio
+    name: "sc16is75x_0 Pin #0"
+    pin:
+      sc16is75x: sc16is75x_0
+      number: 0
+  - platform: gpio
+    name: "sc16is75x_0 pin_1"
+    pin:
+      sc16is75x: sc16is75x_0
+      number: 1
+      mode:
+        input: true
+      inverted: true
+
   - platform: apds9960
     direction: up
     name: APDS9960 Up
@@ -302,6 +316,22 @@ sm2135:
   clock_pin: GPIO14
 
 switch:
+  - platform: gpio
+    name: "sc16is75x_0 pin_2"
+    pin:
+      sc16is75x: sc16is75x_0
+      number: 2
+      mode:
+        output: true
+  - platform: gpio
+    name: "sc16is75x_0 pin_3"
+    pin:
+      sc16is75x: sc16is75x_0
+      number: 3
+      mode:
+        output: true
+      inverted: true
+
   - platform: template
     name: mpr121_toggle
     id: mpr121_toggle
@@ -598,3 +628,53 @@ cd74hc4067:
 
 adc128s102:
   cs_pin: GPIO12
+
+
+uart:
+  id: xxx
+  tx_pin: 3
+  baud_rate: 9600
+  
+wk2132:
+  - id: wk2132_0
+    address: 0x70
+    uart:
+      - uart_id: uart_id_wk2132_0_0
+        channel: 0
+        baud_rate: 115200
+        stop_bits: 1
+        parity: none
+      - uart_id: uart_id_wk2132_0_1
+        channel: 1
+        baud_rate: 19200
+
+sc16is75x:
+  - id: sc16is75x_0
+    model: sc16is750
+    address: 0x4D
+    uart:
+      - uart_id: sc16is75x_0_0
+        channel: 0
+        baud_rate: 115200
+        stop_bits: 1
+        data_bits: 8
+        parity: none
+  - id: sc16is75x_1
+    model: sc16is752
+    address: 0x4C
+    uart:
+      - uart_id: uart_id_sc16is75x_1_0
+        baud_rate: 9600
+        data_bits: 7
+        parity: even
+        channel: 0
+      - uart_id: uart_id_sc16is75x_1_1
+        baud_rate: 19200
+        data_bits: 6
+        parity: odd
+        channel: 1
+  - id: sc16is75x_2
+    model: sc16is752
+  - id: sc16is75x_3
+    model: sc16is750
+

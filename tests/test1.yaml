@@ -1580,6 +1580,20 @@ binary_sensor:
     has_still_target:
       name: still
 
+  - platform: gpio
+    name: "sc16is75x_0 Pin #0"
+    pin:
+      sc16is75x: sc16is75x_0
+      number: 0
+  - platform: gpio
+    name: "sc16is75x_0 pin_1"
+    pin:
+      sc16is75x: sc16is75x_0
+      number: 1
+      mode:
+        input: true
+      inverted: true
+
 pca9685:
   frequency: 500
   address: 0x0
@@ -2203,6 +2217,22 @@ script:
           preset: SLEEP
 
 switch:
+  - platform: gpio
+    name: "sc16is75x_0 pin_2"
+    pin:
+      sc16is75x: sc16is75x_0
+      number: 2
+      mode:
+        output: true
+  - platform: gpio
+    name: "sc16is75x_0 pin_3"
+    pin:
+      sc16is75x: sc16is75x_0
+      number: 3
+      mode:
+        output: true
+      inverted: true
+
   - platform: template
     name: MIDEA_AC_BEEPER_CONTROL
     optimistic: true
@@ -3358,3 +3388,51 @@ lcd_menu:
       on_prev:
         then:
           lambda: 'ESP_LOGI("lcd_menu", "custom prev: %s", it->get_text().c_str());'
+
+wk2132:
+  - id: wk2132_0
+    address: 0x70
+    i2c_id: i2c_bus
+    uart:
+      - uart_id: uart_id_wk2132_0_0
+        channel: 0
+        baud_rate: 115200
+        stop_bits: 1
+        parity: none
+      - uart_id: uart_id_wk2132_0_1
+        channel: 1
+        baud_rate: 19200
+
+sc16is75x:
+  - id: sc16is75x_0
+    model: sc16is750
+    address: 0x4D
+    i2c_id: i2c_bus
+    uart:
+      - uart_id: sc16is75x_0_0
+        channel: 0
+        baud_rate: 115200
+        stop_bits: 1
+        data_bits: 8
+        parity: none
+  - id: sc16is75x_1
+    model: sc16is752
+    address: 0x4C
+    i2c_id: i2c_bus
+    uart:
+      - uart_id: uart_id_sc16is75x_1_0
+        baud_rate: 9600
+        data_bits: 7
+        parity: even
+        channel: 0
+      - uart_id: uart_id_sc16is75x_1_1
+        baud_rate: 19200
+        data_bits: 6
+        parity: odd
+        channel: 1
+  - id: sc16is75x_2
+    model: sc16is752
+    i2c_id: i2c_bus
+  - id: sc16is75x_3
+    model: sc16is750
+    i2c_id: i2c_bus
