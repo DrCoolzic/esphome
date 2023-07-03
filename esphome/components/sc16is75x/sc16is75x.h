@@ -81,7 +81,7 @@ class SC16IS75XComponent : public Component, public i2c::I2CDevice {
   friend class SC16IS75XChannel;
   friend class SC16IS75XGPIOPin;
 
-  /// @brief All write calls to I2C registers are funneled through this method
+  /// @brief All write calls to I2C registers are done through this method
   /// @param reg_address the register address
   /// @param channel the channel number. Only significant for UART registers
   /// @param buffer pointer to the buffer
@@ -89,7 +89,7 @@ class SC16IS75XComponent : public Component, public i2c::I2CDevice {
   /// @return the i2c error codes
   i2c::ErrorCode write_sc16is75x_register_(uint8_t reg_address, uint8_t channel, const uint8_t *buffer, size_t len);
 
-  /// @brief All read calls to I2C registers are funneled through this method
+  /// @brief All read calls to I2C registers are done through this method
   /// @param reg_address the register address
   /// @param channel the channel number. Only significant for UART registers
   /// @param buffer pointer to the buffer
@@ -115,6 +115,8 @@ class SC16IS75XComponent : public Component, public i2c::I2CDevice {
 
   /// Helper method to set the pin mode of a pin.
   void set_pin_direction_(uint8_t pin, gpio::Flags flags);
+
+  void test_gpio();
 
   bool initialized_{false};
   int get_num_() const { return num_; }  ///< get instance number (auto counting)

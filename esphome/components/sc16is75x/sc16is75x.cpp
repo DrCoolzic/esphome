@@ -106,7 +106,7 @@ void SC16IS75XComponent::set_pin_direction_(uint8_t pin, gpio::Flags flags) {
   else
     ESP_LOGE(TAG, "pin %d direction invalid", pin);
 
-  ESP_LOGD(TAG, "setting pin %d direction pin_config=%s", pin, i2s_(pin_config_));
+  ESP_LOGD(TAG, "setting pin %d direction to %d pin_config=%s", pin, flags, i2s_(pin_config_));
   this->write_io_register_(SC16IS75X_REG_IOD, ~this->pin_config_);
 }
 
@@ -124,8 +124,8 @@ void SC16IS75XComponent::setup() {
   }
 
   // we can now setup our children
-  for (auto i = 0; i < children_.size(); i++)
-    children_[i]->setup_channel();
+  for (auto child : children_)
+    child->setup_channel();
 }
 
 void SC16IS75XComponent::dump_config() {
@@ -139,8 +139,8 @@ void SC16IS75XComponent::dump_config() {
     ESP_LOGE(TAG, "Communication with %s failed!", model_name);
   }
 
-  for (auto i = 0; i < children_.size(); i++)
-    children_[i]->dump_channel();
+  for (auto child : children_)
+    child->dump_channel();
   initialized_ = true;
 }
 
@@ -281,22 +281,51 @@ std::string SC16IS75XGPIOPin::dump_summary() const {
 ///////////////////////////////////////////////////////////////////////////////
 #define TEST_COMPONENT
 #ifdef TEST_COMPONENT
+
+void SC16IS75XComponent::test_gpio() {
+  static bool init{false};
+  if (!init) {
+    for (int i = 0; i < 8; i++) {
+      // set 4 first pins in input mode
+      // set 4 next pins in output mode
+      set_pin_direction_(i, (i < 4) ? esphome::gpio::Flags::FLAG_INPUT : esphome::gpio::Flags::FLAG_OUTPUT);
+    }
+    init = true;
+    input_state_ = 0;
+    output_state_ = 0;
+    ESP_LOGI(TAG, "pins configuration: %s", i2s_(pin_config_));
+  }
+  for (int i = 0; i < 4; i++) {
+    // read inputs
+    auto val = read_pin_val_(i);
+    // copy input to output
+    write_pin_val_(i + 4, val);
+  }
+  ESP_LOGI(TAG, "input pins: %s", i2s_(input_state_));
+  ESP_LOGI(TAG, "output pins: %s", i2s_(output_state_));
+}
+
 void SC16IS75XComponent::loop() {
   //
-  // This loop is used only if the wk2132 component is in test mode
+  // This loop is used only if the sc16is75x component is in test mode
   //
   if (!initialized_ || !test_mode_)
     return;
+
   char preamble[64];
   static int32_t loop_time = 0;
   ESP_LOGI(TAG, "%d ms since last loop call ...", millis() - loop_time);
   loop_time = millis();
 
-  for (size_t i = 0; i < children_.size(); i++) {
-    snprintf(preamble, sizeof(preamble), "SC16IS75X_%d_Ch_%d", get_num_(), i);
-    children_[i]->uart_send_test(preamble);
-    children_[i]->uart_receive_test(preamble, test_mode_ > 1);
+  int i{0};
+  for (auto child : children_) {
+    snprintf(preamble, sizeof(preamble), "SC16IS75X_%d_Ch_%d", get_num_(), i++);
+    child->uart_send_test(preamble);
+    child->uart_receive_test(preamble, test_mode_ > 1);
   }
+
+  test_gpio();
+
   ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
 }
 #endif

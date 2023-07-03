@@ -10,7 +10,7 @@ namespace gen_uart {
 static const char *const TAG = "gen_uart";
 
 /*! @page page_gen_uart_bus_ GenUARTChannel documentation
-This page gives some information about the details of implementation of
+This page gives some information about the details of the implementation of
 the GenUARTChannel class for ESPHome.
 
   @section gen_uart_bus_ GenUARTChannel (UART) class
@@ -24,18 +24,18 @@ The esphome::uart::UARTDevice class directly relates to the **Serial Class**
 in Arduino and derives from **Stream class**.\n
 For compatibility reason (?) many helper methods are made available in ESPHome to
 read and write. Unfortunately in many cases these helpers are missing the critical
-status information and therfore even more unsafe to use...\n
+status information and therefore even more unsafe to use...\n
 
  @subsection ra_ss_ bool read_array(uint8_t *buffer, size_t len);
 
 This method receives 'len' characters from the uart and transfer them into
-a buffer. It returns:
+a buffer. It returns
 - true if requested number of characters have been transferred,
 - false if we have a timeout condition\n
 
 Note: If the characters requested are available in the fifo we read them otherwise
-we wait up to 100 ms to get them. To avoid problem it is highly recommended to call
-read() with the length set to number of bytes returned by available()
+we wait up to 100 ms to get them. To avoid problems it is highly recommended to call
+read() with the length set to the number of bytes returned by available()
 
 Typical usage:
 @code
