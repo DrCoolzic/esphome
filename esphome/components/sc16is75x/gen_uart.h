@@ -90,10 +90,9 @@ class GenUARTChannel : public uart::UARTComponent {
  protected:
   /// @brief cannot happen with external uart
   void check_logger_conflict() override {}
-  size_t buffered() { return peek_buffer_.empty ? 0 : 1; }
 
   bool safe_{true};  // false will speed up operation but is unsafe
-  struct {
+  struct PeekBuffer {
     uint8_t data;
     bool empty{true};
   } peek_buffer_;  // temporary storage when you peek data

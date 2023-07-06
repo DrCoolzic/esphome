@@ -47,6 +47,8 @@ const uint8_t SC16IS75X_REG_XF2 = 0X07;  // Xoff2 word (rw) only if LCR=0xBF (10
 enum SC16IS75XComponentModel { SC16IS750_MODEL, SC16IS752_MODEL };  ///< chip models
 class SC16IS75XChannel;                                             ///< forward declaration
 
+using Channel = uint8_t;
+
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief This class describes a SC16IS75X I²C component.
 ///
@@ -87,7 +89,7 @@ class SC16IS75XComponent : public Component, public i2c::I2CDevice {
   /// @param buffer pointer to the buffer
   /// @param len number of bytes to write
   /// @return the i2c error codes
-  i2c::ErrorCode write_sc16is75x_register_(uint8_t reg_address, uint8_t channel, const uint8_t *buffer, size_t len);
+  i2c::ErrorCode write_sc16is75x_register_(uint8_t reg_address, Channel channel, const uint8_t *buffer, size_t len);
 
   /// @brief All read calls to I2C registers are done through this method
   /// @param reg_address the register address
@@ -95,7 +97,7 @@ class SC16IS75XComponent : public Component, public i2c::I2CDevice {
   /// @param buffer pointer to the buffer
   /// @param len number of bytes to read
   /// @return the i2c error codes
-  i2c::ErrorCode read_sc16is75x_register_(uint8_t reg_address, uint8_t channel, uint8_t *buffer, size_t len);
+  i2c::ErrorCode read_sc16is75x_register_(uint8_t reg_address, Channel channel, uint8_t *buffer, size_t len);
 
   /// @brief Use to read GPIO related register. Channel 0 is used (as not significant)
   /// @param reg_address the register address
@@ -149,7 +151,7 @@ class SC16IS75XChannel : public gen_uart::GenUARTChannel {
     parent_ = parent;                    // our parent
     parent_->children_.push_back(this);  // add ourself in children list
   }
-  void set_channel(uint8_t channel) { channel_ = channel; }
+  void set_channel(Channel channel) { this->channel_ = channel; }
   void setup_channel();
   void dump_channel();
 
@@ -159,11 +161,11 @@ class SC16IS75XChannel : public gen_uart::GenUARTChannel {
 
   /// @brief Should return the number of bytes available in the receiver fifo
   /// @return the number of bytes we can read
-  size_t rx_in_fifo() override { return read_uart_register_(SC16IS75X_REG_RXF); }
+  size_t rx_in_fifo() override { return this->read_uart_register_(SC16IS75X_REG_RXF); }
 
   /// @brief Should return the number of bytes available in the transmitter fifo
   /// @return the number of bytes we can write
-  virtual size_t tx_in_fifo() override { return fifo_size() - read_uart_register_(SC16IS75X_REG_TXF); }
+  virtual size_t tx_in_fifo() override { return this->fifo_size() - this->read_uart_register_(SC16IS75X_REG_TXF); }
 
   /// @brief Read data from the receiver fifo to a buffer
   /// @param buffer the buffer
@@ -175,7 +177,7 @@ class SC16IS75XChannel : public gen_uart::GenUARTChannel {
 
   /// @brief Write data to the transmitter fifo from a buffer
   /// @param buffer the buffer
-  /// @param len the number of bytes we want to write
+  /// @param len the number of bytes we want to writefor
   /// @return true if succeed false otherwise
   virtual bool write_data(const uint8_t *buffer, size_t len) override {
     return parent_->write_sc16is75x_register_(SC16IS75X_REG_THR, channel_, buffer, len) == i2c::ERROR_OK;
@@ -195,7 +197,7 @@ class SC16IS75XChannel : public gen_uart::GenUARTChannel {
   void set_baudrate_();
 
   SC16IS75XComponent *parent_;
-  uint8_t channel_;
+  Channel channel_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -203,6 +205,11 @@ class SC16IS75XChannel : public gen_uart::GenUARTChannel {
 ///////////////////////////////////////////////////////////////////////////////
 class SC16IS75XGPIOPin : public GPIOPin {
  public:
+  void set_parent(SC16IS75XComponent *parent) { this->parent_ = parent; }
+  void set_pin(uint8_t pin) { this->pin_ = pin; }
+  void set_inverted(bool inverted) { this->inverted_ = inverted; }
+  void set_flags(gpio::Flags flags) { this->flags_ = flags; }
+
   //
   // overriden GPIOPin methods
   //
@@ -213,13 +220,8 @@ class SC16IS75XGPIOPin : public GPIOPin {
   void digital_write(bool value) override;
   std::string dump_summary() const override;
 
-  void set_parent(SC16IS75XComponent *parent) { parent_ = parent; }
-  void set_pin(uint8_t pin) { pin_ = pin; }
-  void set_inverted(bool inverted) { inverted_ = inverted; }
-  void set_flags(gpio::Flags flags) { flags_ = flags; }
-
  protected:
-  SC16IS75XComponent *parent_;
+  SC16IS75XComponent *parent_{nullptr};
   uint8_t pin_;
   bool inverted_;
   gpio::Flags flags_;
