@@ -13,32 +13,32 @@ namespace esphome {
 namespace wk2132 {
 
 /// @brief Global register
-const uint8_t REG_WK2132_GENA = 0x00;  ///< Global control register
-const uint8_t REG_WK2132_GRST = 0x01;  ///< Global UART channel reset register
-const uint8_t REG_WK2132_GMUT = 0x02;  ///< Global main UART control register, and will be used only when the main UART
-                                       ///< is selected as UART, no need to be set here.
+constexpr uint8_t REG_WK2132_GENA = 0x00;  ///< Global control register
+constexpr uint8_t REG_WK2132_GRST = 0x01;  ///< Global UART channel reset register
+constexpr uint8_t REG_WK2132_GMUT = 0x02;  ///< Global main UART control register, and will be used only when the main
+                                           ///< UART is selected as UART, no need to be set here.
 
 /// @brief UART Channel register when PAGE = 0
-const uint8_t REG_WK2132_SPAGE = 0x03;  //< UART page control register
-const uint8_t REG_WK2132_SCR = 0x04;    ///< serial control register
-const uint8_t REG_WK2132_LCR = 0x05;    ///< line control register
-const uint8_t REG_WK2132_FCR = 0x06;    ///< FIFO control register
-const uint8_t REG_WK2132_SIER = 0x07;   ///< interrupt enable register
-const uint8_t REG_WK2132_SIFR = 0x08;   ///< interrupt flag register
-const uint8_t REG_WK2132_TFCNT = 0x09;  ///< transmit FIFO value register
-const uint8_t REG_WK2132_RFCNT = 0x0A;  ///< receive FIFO value register
-const uint8_t REG_WK2132_FSR = 0x0B;    ///< FIFO status register
-const uint8_t REG_WK2132_LSR = 0x0C;    ///< receive status register
-const uint8_t REG_WK2132_FDA = 0x0D;    ///< FIFO data register (r/w)
+constexpr uint8_t REG_WK2132_SPAGE = 0x03;  //< UART page control register
+constexpr uint8_t REG_WK2132_SCR = 0x04;    ///< serial control register
+constexpr uint8_t REG_WK2132_LCR = 0x05;    ///< line control register
+constexpr uint8_t REG_WK2132_FCR = 0x06;    ///< FIFO control register
+constexpr uint8_t REG_WK2132_SIER = 0x07;   ///< interrupt enable register
+constexpr uint8_t REG_WK2132_SIFR = 0x08;   ///< interrupt flag register
+constexpr uint8_t REG_WK2132_TFCNT = 0x09;  ///< transmit FIFO value register
+constexpr uint8_t REG_WK2132_RFCNT = 0x0A;  ///< receive FIFO value register
+constexpr uint8_t REG_WK2132_FSR = 0x0B;    ///< FIFO status register
+constexpr uint8_t REG_WK2132_LSR = 0x0C;    ///< receive status register
+constexpr uint8_t REG_WK2132_FDA = 0x0D;    ///< FIFO data register (r/w)
 
 ///@brief UART Channel register PAGE = 1
-const uint8_t REG_WK2132_BRH = 0x04;  ///< Channel baud rate configuration register high byte
-const uint8_t REG_WK2132_BRL = 0x05;  ///< Channel baud rate configuration register low byte
-const uint8_t REG_WK2132_BRD = 0x06;  ///< Channel baud rate configuration register decimal part
-const uint8_t REG_WK2132_RFI = 0x07;  ///< Channel receive FIFO interrupt trigger configuration register
-const uint8_t REG_WK2132_TFI = 0x08;  ///< Channel transmit FIFO interrupt trigger configuration register
+constexpr uint8_t REG_WK2132_BRH = 0x04;  ///< Channel baud rate configuration register high byte
+constexpr uint8_t REG_WK2132_BRL = 0x05;  ///< Channel baud rate configuration register low byte
+constexpr uint8_t REG_WK2132_BRD = 0x06;  ///< Channel baud rate configuration register decimal part
+constexpr uint8_t REG_WK2132_RFI = 0x07;  ///< Channel receive FIFO interrupt trigger configuration register
+constexpr uint8_t REG_WK2132_TFI = 0x08;  ///< Channel transmit FIFO interrupt trigger configuration register
 
-class WK2132Channel;                  // forward declaration
+class WK2132Channel;                      // forward declaration
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief This class describes a WK2132 I²C component.
 ///
@@ -53,9 +53,9 @@ class WK2132Channel;                  // forward declaration
 class WK2132Component : public Component, public i2c::I2CDevice {
  public:
   // we store the base_address and we increment number of instances
-  WK2132Component() : base_address_{address_} { ++counter_; }
-  void set_crystal(uint32_t crystal) { crystal_ = crystal; }
-  void set_test_mode(int test_mode) { test_mode_ = test_mode; }
+  WK2132Component() : base_address_{this->address_} { ++counter_; }
+  void set_crystal(uint32_t crystal) { this->crystal_ = crystal; }
+  void set_test_mode(int test_mode) { this->test_mode_ = test_mode; }
 
   //
   //  override Component methods
@@ -110,10 +110,10 @@ class WK2132Component : public Component, public i2c::I2CDevice {
 class WK2132Channel : public gen_uart::GenUARTChannel {
  public:
   void set_parent(WK2132Component *parent) {
-    parent_ = parent;
-    parent_->children_.push_back(this);
+    this->parent_ = parent;
+    this->parent_->children_.push_back(this);
   }
-  void set_channel(uint8_t channel) { channel_ = channel; }
+  void set_channel(uint8_t channel) { this->channel_ = channel; }
   void setup_channel();
 
   //

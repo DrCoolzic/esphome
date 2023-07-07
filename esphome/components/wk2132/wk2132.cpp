@@ -7,11 +7,11 @@
 namespace esphome {
 namespace wk2132 {
 
-static const char *const TAG = "wk2132";
+static constexpr char *const TAG = "wk2132";
 
-static const char *reg_to_str_p0[] = {"GENA", "GRST", "GMUT",  "SPAGE", "SCR", "LCR", "FCR",
-                                      "SIER", "SIFR", "TFCNT", "RFCNT", "FSR", "LSR", "FDAT"};
-static const char *reg_to_str_p1[] = {"GENA", "GRST", "GMUT", "SPAGE", "BAUD1", "BAUD0", "PRES", "RFTL", "TFTL"};
+static constexpr char *reg_to_str_p0[] = {"GENA", "GRST", "GMUT",  "SPAGE", "SCR", "LCR", "FCR",
+                                          "SIER", "SIFR", "TFCNT", "RFCNT", "FSR", "LSR", "FDAT"};
+static constexpr char *reg_to_str_p1[] = {"GENA", "GRST", "GMUT", "SPAGE", "BAUD1", "BAUD0", "PRES", "RFTL", "TFTL"};
 
 // convert an int to binary string
 inline const char *i2s_(uint8_t val) { return std::bitset<8>(val).to_string().c_str(); }
@@ -90,14 +90,14 @@ uint8_t WK2132Component::read_wk2132_register_(uint8_t reg_number, uint8_t chann
 // overloaded methods from Component
 //
 void WK2132Component::setup() {
-  base_address_ = address_;
+  this->base_address_ = this->address_;
   ESP_LOGCONFIG(TAG, "Setting up WK2132:%d @%02X with %d UARTs...", get_num_(), base_address_, (int) children_.size());
   // we test communication
   read_wk2132_register_(REG_WK2132_GENA, 0, &data_, 1);
 
   // we setup our children
-  for (auto i = 0; i < children_.size(); i++)
-    children_[i]->setup_channel();
+  for (auto child : this->children_)
+    child->setup_channel();
 }
 
 void WK2132Component::dump_config() {
@@ -108,12 +108,13 @@ void WK2132Component::dump_config() {
     ESP_LOGE(TAG, "Communication with WK2132 failed!");
   }
 
-  for (auto i = 0; i < children_.size(); i++) {
+  auto i{0};
+  for (auto child : this->children_) {
     ESP_LOGCONFIG(TAG, "  UART bus %d:%d...", get_num_(), i);
-    ESP_LOGCONFIG(TAG, "    baudrate %d Bd", children_[i]->baud_rate_);
-    ESP_LOGCONFIG(TAG, "    data_bits %d", children_[i]->data_bits_);
-    ESP_LOGCONFIG(TAG, "    stop_bits %d", children_[i]->stop_bits_);
-    ESP_LOGCONFIG(TAG, "    parity %s", parity2string(children_[i]->parity_));
+    ESP_LOGCONFIG(TAG, "    baudrate %d Bd", child->baud_rate_);
+    ESP_LOGCONFIG(TAG, "    data_bits %d", child->data_bits_);
+    ESP_LOGCONFIG(TAG, "    stop_bits %d", child->stop_bits_);
+    ESP_LOGCONFIG(TAG, "    parity %s", parity2string(child->parity_));
   }
   initialized_ = true;
 }
@@ -213,10 +214,10 @@ void WK2132Channel::set_line_param_() {
   //  |        RSV      |  BREAK |  IREN  |  PAEN  |      PAM        |  STPL  |
   //  -------------------------------------------------------------------------
   lcr &= 0xF0;                           // Clear the lower 4 bit of LCR
-  if (stop_bits_ == 2)
+  if (this->stop_bits_ == 2)
     lcr |= 0x01;                         // 0001
 
-  switch (parity_) {                     // parity selection settings
+  switch (this->parity_) {               // parity selection settings
     case uart::UART_CONFIG_PARITY_ODD:   // odd parity
       lcr |= 0x5 << 1;                   // 101x
       break;
@@ -263,7 +264,7 @@ bool WK2132Channel::read_data(uint8_t *buffer, size_t len) {
   parent_->address_ = i2c_address(parent_->base_address_, channel_, 1);  // set fifo flag
   // Here we are reading directly from the fifo buffer without passing through a register
   // note: that theoretically it should be possible to read through the REG_WK2132_FDA register
-  // but beware that it does not work !
+  // but beware that it does not seems to work !
   auto error = parent_->read(buffer, len);
   if ((error == i2c::ERROR_OK)) {
     parent_->status_clear_warning();
@@ -280,11 +281,11 @@ bool WK2132Channel::read_data(uint8_t *buffer, size_t len) {
 
 // #define ClassicWriteMethods
 bool WK2132Channel::write_data(const uint8_t *buffer, size_t len) {
-  parent_->address_ = i2c_address(parent_->base_address_, channel_, 1);  // set fifo flag
+  parent_->address_ = i2c_address(parent_->base_address_, this->channel_, 1);  // set fifo flag
 
   // Here we are writing directly to the fifo buffer without passing through a register
   // note: that theoretically it should be possible to write through the REG_WK2132_FDA register
-  // but beware that it does not work !
+  // but beware that it does not seems to work !
   auto error = parent_->write(buffer, len);
   if ((error == i2c::ERROR_OK)) {
     parent_->status_clear_warning();

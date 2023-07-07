@@ -13,36 +13,36 @@ namespace esphome {
 namespace sc16is75x {
 
 // General sc16is75x registers
-const uint8_t SC16IS75X_REG_RHR = 0x00;  // 00 receive holding register (r) with a 64-bytes FIFO
-const uint8_t SC16IS75X_REG_THR = 0X00;  // 00 transmit holding register (w) with a 64-bytes FIFO
-const uint8_t SC16IS75X_REG_IER = 0X01;  // 08 interrupt enable register (r/w)
-const uint8_t SC16IS75X_REG_IIR = 0X02;  // 10 interrupt identification register (r)
-const uint8_t SC16IS75X_REG_FCR = 0X02;  // 10 FIFO control register (w)
-const uint8_t SC16IS75X_REG_LCR = 0X03;  // 18 line control register (r/w)
-const uint8_t SC16IS75X_REG_MCR = 0X04;  // 20 modem control register (r/w) - only when EFR[4]=1
-const uint8_t SC16IS75X_REG_LSR = 0X05;  // 28 line status register (ro)
-const uint8_t SC16IS75X_REG_MSR = 0X06;  // 30 modem status register (ro)
-const uint8_t SC16IS75X_REG_TCR = 0X06;  // 30 transmission control register (r/w) when EFR[4]=1 & MRC[2]=1
-const uint8_t SC16IS75X_REG_SPR = 0X07;  // 38 scratchpad register (r/w)
-const uint8_t SC16IS75X_REG_TLR = 0X07;  // 38 trigger level register (r/w) when EFR[4]=1 & MRC[2]=1
-const uint8_t SC16IS75X_REG_TXF = 0X08;  // 40 transmit FIFO level register (ro)
-const uint8_t SC16IS75X_REG_RXF = 0X09;  // 48 receive FIFO level register (ro)
-const uint8_t SC16IS75X_REG_IOD = 0X0A;  // 50 I/O pin direction register (r/w)
-const uint8_t SC16IS75X_REG_IOP = 0X0B;  // 58 I/O pin state register (r/w)
-const uint8_t SC16IS75X_REG_IOI = 0X0C;  // 60 I/O interrupt enable register (r/w)
-const uint8_t SC16IS75X_REG_IOC = 0X0E;  // 70 I/O pin control register (r/w)
-const uint8_t SC16IS75X_REG_XFR = 0X0F;  // 78 extra features register (r/w)
+constexpr uint8_t SC16IS75X_REG_RHR = 0x00;  // 00 receive holding register (r) with a 64-bytes FIFO
+constexpr uint8_t SC16IS75X_REG_THR = 0X00;  // 00 transmit holding register (w) with a 64-bytes FIFO
+constexpr uint8_t SC16IS75X_REG_IER = 0X01;  // 08 interrupt enable register (r/w)
+constexpr uint8_t SC16IS75X_REG_IIR = 0X02;  // 10 interrupt identification register (r)
+constexpr uint8_t SC16IS75X_REG_FCR = 0X02;  // 10 FIFO control register (w)
+constexpr uint8_t SC16IS75X_REG_LCR = 0X03;  // 18 line control register (r/w)
+constexpr uint8_t SC16IS75X_REG_MCR = 0X04;  // 20 modem control register (r/w) - only when EFR[4]=1
+constexpr uint8_t SC16IS75X_REG_LSR = 0X05;  // 28 line status register (ro)
+constexpr uint8_t SC16IS75X_REG_MSR = 0X06;  // 30 modem status register (ro)
+constexpr uint8_t SC16IS75X_REG_TCR = 0X06;  // 30 transmission control register (r/w) when EFR[4]=1 & MRC[2]=1
+constexpr uint8_t SC16IS75X_REG_SPR = 0X07;  // 38 scratchpad register (r/w)
+constexpr uint8_t SC16IS75X_REG_TLR = 0X07;  // 38 trigger level register (r/w) when EFR[4]=1 & MRC[2]=1
+constexpr uint8_t SC16IS75X_REG_TXF = 0X08;  // 40 transmit FIFO level register (ro)
+constexpr uint8_t SC16IS75X_REG_RXF = 0X09;  // 48 receive FIFO level register (ro)
+constexpr uint8_t SC16IS75X_REG_IOD = 0X0A;  // 50 I/O pin direction register (r/w)
+constexpr uint8_t SC16IS75X_REG_IOP = 0X0B;  // 58 I/O pin state register (r/w)
+constexpr uint8_t SC16IS75X_REG_IOI = 0X0C;  // 60 I/O interrupt enable register (r/w)
+constexpr uint8_t SC16IS75X_REG_IOC = 0X0E;  // 70 I/O pin control register (r/w)
+constexpr uint8_t SC16IS75X_REG_XFR = 0X0F;  // 78 extra features register (r/w)
 
 // Special registers only if LCR[7] == 1 & LCR != 0xBF
-const uint8_t SC16IS75X_REG_DLL = 0x00;  // divisor latch lsb (r/w) only if LCR[7]=1 & LCR != 0xBF
-const uint8_t SC16IS75X_REG_DLH = 0X01;  // divisor latch msb (r/w) only if LCR[7]=1 & LCR != 0xBF
+constexpr uint8_t SC16IS75X_REG_DLL = 0x00;  // divisor latch lsb (r/w) only if LCR[7]=1 & LCR != 0xBF
+constexpr uint8_t SC16IS75X_REG_DLH = 0X01;  // divisor latch msb (r/w) only if LCR[7]=1 & LCR != 0xBF
 
 // Enhanced registers only if LCR == 0xBF
-const uint8_t SC16IS75X_REG_EFR = 0X02;  // enhanced features register only if LCR=0xBF (1011 1111)
-const uint8_t SC16IS75X_REG_XO1 = 0X04;  // Xon1 word (rw) only if LCR=0xBF (1011 1111)
-const uint8_t SC16IS75X_REG_XO2 = 0X05;  // Xon2 word (rw) only if LCR=0xBF (1011 1111)
-const uint8_t SC16IS75X_REG_XF1 = 0X06;  // Xoff1 word (rw) only if LCR=0xBF (1011 1111)
-const uint8_t SC16IS75X_REG_XF2 = 0X07;  // Xoff2 word (rw) only if LCR=0xBF (1011 1111)
+constexpr uint8_t SC16IS75X_REG_EFR = 0X02;  // enhanced features register only if LCR=0xBF (1011 1111)
+constexpr uint8_t SC16IS75X_REG_XO1 = 0X04;  // Xon1 word (rw) only if LCR=0xBF (1011 1111)
+constexpr uint8_t SC16IS75X_REG_XO2 = 0X05;  // Xon2 word (rw) only if LCR=0xBF (1011 1111)
+constexpr uint8_t SC16IS75X_REG_XF1 = 0X06;  // Xoff1 word (rw) only if LCR=0xBF (1011 1111)
+constexpr uint8_t SC16IS75X_REG_XF2 = 0X07;  // Xoff2 word (rw) only if LCR=0xBF (1011 1111)
 
 enum SC16IS75XComponentModel { SC16IS750_MODEL, SC16IS752_MODEL };  ///< chip models
 class SC16IS75XChannel;                                             ///< forward declaration
