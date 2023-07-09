@@ -317,11 +317,10 @@ void SC16IS75XComponent::loop() {
   ESP_LOGI(TAG, "%d ms since last loop call ...", millis() - loop_time);
   loop_time = millis();
 
-  int i{0};
-  for (auto child : this->children_) {
-    snprintf(preamble, sizeof(preamble), "SC16IS75X_%d_Ch_%d", get_num_(), i++);
-    child->uart_send_test(preamble);
-    child->uart_receive_test(preamble, test_mode_ > 1);
+  for (auto i = 0; i < children_.size(); i++) {
+    snprintf(preamble, sizeof(preamble), "SC16IS75X_%d_Ch_%d", get_num_(), i);
+    children_[i]->uart_send_test(preamble);
+    children_[i]->uart_receive_test(preamble, test_mode_ > 1);
   }
 
   test_gpio();
