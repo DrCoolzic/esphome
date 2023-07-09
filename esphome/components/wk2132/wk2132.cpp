@@ -108,13 +108,12 @@ void WK2132Component::dump_config() {
     ESP_LOGE(TAG, "Communication with WK2132 failed!");
   }
 
-  auto i{0};
-  for (auto child : this->children_) {
+  for (auto i = 0; i < children_.size(); i++) {
     ESP_LOGCONFIG(TAG, "  UART bus %d:%d...", get_num_(), i);
-    ESP_LOGCONFIG(TAG, "    baudrate %d Bd", child->baud_rate_);
-    ESP_LOGCONFIG(TAG, "    data_bits %d", child->data_bits_);
-    ESP_LOGCONFIG(TAG, "    stop_bits %d", child->stop_bits_);
-    ESP_LOGCONFIG(TAG, "    parity %s", parity2string(child->parity_));
+    ESP_LOGCONFIG(TAG, "    baudrate %d Bd", children_[i]->baud_rate_);
+    ESP_LOGCONFIG(TAG, "    data_bits %d", children_[i]->data_bits_);
+    ESP_LOGCONFIG(TAG, "    stop_bits %d", children_[i]->stop_bits_);
+    ESP_LOGCONFIG(TAG, "    parity %s", parity2string(children_[i]->parity_));
   }
   initialized_ = true;
 }
