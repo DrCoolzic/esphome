@@ -7,11 +7,11 @@
 namespace esphome {
 namespace wk2132 {
 
-static constexpr char *const TAG = "wk2132";
+static const char *const TAG = "wk2132";
 
-static constexpr char *reg_to_str_p0[] = {"GENA", "GRST", "GMUT",  "SPAGE", "SCR", "LCR", "FCR",
-                                          "SIER", "SIFR", "TFCNT", "RFCNT", "FSR", "LSR", "FDAT"};
-static constexpr char *reg_to_str_p1[] = {"GENA", "GRST", "GMUT", "SPAGE", "BAUD1", "BAUD0", "PRES", "RFTL", "TFTL"};
+static const char *reg_to_str_p0[] = {"GENA", "GRST", "GMUT",  "SPAGE", "SCR", "LCR", "FCR",
+                                      "SIER", "SIFR", "TFCNT", "RFCNT", "FSR", "LSR", "FDAT"};
+static const char *reg_to_str_p1[] = {"GENA", "GRST", "GMUT", "SPAGE", "BAUD1", "BAUD0", "PRES", "RFTL", "TFTL"};
 
 // convert an int to binary string
 inline const char *i2s_(uint8_t val) { return std::bitset<8>(val).to_string().c_str(); }
@@ -212,13 +212,13 @@ void WK2132Channel::set_line_param_() {
   //  -------------------------------------------------------------------------
   //  |        RSV      |  BREAK |  IREN  |  PAEN  |      PAM        |  STPL  |
   //  -------------------------------------------------------------------------
-  lcr &= 0xF0;                           // Clear the lower 4 bit of LCR
+  lcr &= 0xF0;  // Clear the lower 4 bit of LCR
   if (this->stop_bits_ == 2)
-    lcr |= 0x01;                         // 0001
+    lcr |= 0x01;  // 0001
 
-  switch (this->parity_) {               // parity selection settings
-    case uart::UART_CONFIG_PARITY_ODD:   // odd parity
-      lcr |= 0x5 << 1;                   // 101x
+  switch (this->parity_) {              // parity selection settings
+    case uart::UART_CONFIG_PARITY_ODD:  // odd parity
+      lcr |= 0x5 << 1;                  // 101x
       break;
     case uart::UART_CONFIG_PARITY_EVEN:  // even parity
       lcr |= 0x6 << 1;                   // 110x
