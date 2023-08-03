@@ -266,8 +266,3 @@ async def to_code(config):
                 time_to_cycles(config[CONF_BIT1_LOW]),
             ),
         )
-        "platform_packages",
-        [
-            "earlephilhower/tool-pioasm-rp2040-earlephilhower",
-        ],
-    )
