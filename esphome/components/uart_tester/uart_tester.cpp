@@ -105,7 +105,7 @@ void UARTTester::uart_receive_frame_1_by_1_() {
       to_read--;
     }
     while (to_read && !this->available()) {
-      if (millis() - watch_dog > 200) {
+      if (millis() - watch_dog > 100) {
         ESP_LOGE(TAG, " Receive frame 1 by 1 timed out: still %d bytes not received...", to_read);
         return;
       }
@@ -126,7 +126,7 @@ void UARTTester::loop() {
   ESP_LOGI(TAG, "loop %d for tester %s : %d ms since last call ...", loop_calls++, this->get_name(),
            elapsed(loop_time));
 
-  if (mode_.none()) {  // mode 0
+  if (this->mode_ == 0) {  // mode loop
     char preamble[64];
 
     elapsed(time);
@@ -146,17 +146,15 @@ void UARTTester::loop() {
     ESP_LOGI(TAG, "  receive frame 1 by 1 call time %d ms", elapsed(time));
   }
 
-  if (this->mode_.test(1)) {  // test echo mode (bit 0)
-    // elapsed(time);
-    // for (auto *uart : this->uart_list_) {
-    //   uint8_t data;
-    //   if (child->available()) {
-    //     child->read_byte(&data);
-    //     ESP_LOGI(TAG, "echo mode: read -> send %02X", data);
-    //     child->write_byte(data);
-    //   }
-    // }
-    // ESP_LOGI(TAG, "echo execution time %d µs...", elapsed(time));
+  if (this->mode_ == 1) {  // mode echo
+    uint8_t data;
+    if (this->available()) {
+      this->read_byte(&data);
+      ESP_LOGI(TAG, "echo mode: read -> send %02X", data);
+      this->write_byte(data);
+    }
+
+    ESP_LOGI(TAG, "echo execution time %d µs...", elapsed(time));
   }
 
   ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);

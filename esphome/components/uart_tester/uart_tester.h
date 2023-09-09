@@ -3,7 +3,7 @@
 /// @brief  uart_tester classes interface
 
 #pragma once
-#include <bitset>
+// #include <bitset>
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 
@@ -29,7 +29,7 @@ class UARTTester : public PollingComponent, public uart::UARTDevice {
   void uart_receive_frame_();
   void uart_receive_frame_1_by_1_();
 
-  std::bitset<8> mode_;
+  int mode_;
   std::vector<uint8_t> input_buffer{std::vector<uint8_t>(BUFFER_SIZE)};
   std::vector<uint8_t> output_buffer{std::vector<uint8_t>(BUFFER_SIZE)};
   bool initialized_{false};
