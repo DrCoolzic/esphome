@@ -72,7 +72,7 @@ void UARTTester::uart_send_frame_() {
 void UARTTester::uart_receive_frame_() {
   uint32_t watch_dog = millis();
   uint32_t time;
-  uint8_t to_read = BUFFER_SIZE;
+  size_t to_read = BUFFER_SIZE;
 
   elapsed(time, true);
   while (to_read) {
@@ -90,13 +90,13 @@ void UARTTester::uart_receive_frame_() {
     }
     ESP_LOGI(TAG, " received frame of %d bytes - execution time %d µs", available, elapsed(time, true));
   }
-  // print_buffer(input_buffer);
+  print_buffer(input_buffer);
 }
 
 void UARTTester::uart_receive_frame_1_by_1_() {
   uint32_t watch_dog = millis();
   uint32_t time;
-  uint8_t to_read = BUFFER_SIZE;
+  size_t to_read = BUFFER_SIZE;
 
   elapsed(time, true);
   while (to_read) {
