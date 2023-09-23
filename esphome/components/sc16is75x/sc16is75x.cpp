@@ -35,58 +35,47 @@ static const char *write_reg_to_str[] = {"THR",   "IER",   "FCR", "LCR", "MCR", 
 static const char *read_reg_to_str[] = {"RHR", "IER", "IIR", "LCR", "MCR", "LSR", "MSR", "SPR",
                                         "TXF", "RXF", "IOD", "IOP", "IOI", "IOC", "EFR"};
 
-// the register address is composed of the register value and the channel value.
+// the register address on the bus is build from the register value and the channel value.
 // note that for I/O related register the chanel value is not significant so we set to zero
-inline static uint8_t reg_address(uint8_t reg_number, Channel channel = 0) { return (reg_number << 3 | channel << 1); }
+inline static uint8_t reg_bus_address(uint8_t reg_number, Channel channel = 0) {
+  return (reg_number << 3 | channel << 1);
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // The SC16IS75XComponent methods
 ///////////////////////////////////////////////////////////////////////////////
-int SC16IS75XComponent::count_{0};  // initialize static count
-
-i2c::ErrorCode SC16IS75XComponent::write_sc16is75x_register_(uint8_t reg_number, Channel channel, const uint8_t *buffer,
-                                                             size_t len) {
-  auto sub = reg_address(reg_number, channel);
-  auto error = this->write_register(sub, buffer, len);
+i2c::ErrorCode SC16IS75XComponent::write_sc16is75x_register_(uint8_t reg, Channel ch, const uint8_t *buf, size_t len) {
+  auto rba = reg_bus_address(reg, ch);
+  auto error = this->write_register(rba, buf, len);
   if (error == i2c::ERROR_OK) {
     this->status_clear_warning();
-    ESP_LOGVV(TAG, "write_sc16is75x_register_(%s, %X [0x%02X], b=%02X [%s], len=%d): I2C code %d",
-              write_reg_to_str[reg_number], channel, sub, *buffer, i2s_(*buffer), len, (int) error);
+    ESP_LOGVV(TAG, "write_sc16is75x_register_ [%s, %d] => %02X, b=%02X, len=%d : I2C code %d", write_reg_to_str[reg],
+              ch, rba, &buf, len, error);
   } else {  // error
     this->status_set_warning();
-    ESP_LOGE(TAG, "write_sc16is75x_register_(%s, %X [0x%02X], b=%02X [%s], len=%d): I2C code %d",
-             write_reg_to_str[reg_number], channel, sub, *buffer, i2s_(*buffer), len, (int) error);
+    ESP_LOGE(TAG, "write_sc16is75x_register_ [%s, %d] => %02X, b=%02X, len=%d : I2C code %d", write_reg_to_str[reg], ch,
+             rba, &buf, len, error);
   }
   return error;
 }
 
-i2c::ErrorCode SC16IS75XComponent::read_sc16is75x_register_(uint8_t reg_number, Channel channel, uint8_t *buffer,
-                                                            size_t len) {
-  auto sub = reg_address(reg_number, channel);
-  auto error = this->read_register(sub, buffer, len);
+i2c::ErrorCode SC16IS75XComponent::read_sc16is75x_register_(uint8_t reg, Channel ch, uint8_t *buf, size_t len) {
+  auto rba = reg_bus_address(reg, ch);
+  auto error = this->read_register(rba, buf, len);
   if ((error == i2c::ERROR_OK)) {
     this->status_clear_warning();
-    ESP_LOGVV(TAG, "read_sc16is75x_register_(%s, %X [0x%02X], b=%02X [%s], len=%d): I2C code %d",
-              read_reg_to_str[reg_number], channel, sub, *buffer, i2s_(*buffer), len, (int) error);
+    ESP_LOGVV(TAG, "read_sc16is75x_register_ [%s, %X] => %02X, b=%02X, len=%d : I2C code %d", read_reg_to_str[reg], ch,
+              rba, &buf, len, error);
   } else {  // error
     this->status_set_warning();
-    ESP_LOGE(TAG, "read_sc16is75x_register_(%s, %X [0x%02X], b=%02X [%s], len=%d): I2C code %d",
-             read_reg_to_str[reg_number], channel, sub, *buffer, i2s_(*buffer), len, (int) error);
+    ESP_LOGE(TAG, "read_sc16is75x_register_ [%s, %X] => %02X, b=%02X, len=%d : I2C code %d", read_reg_to_str[reg], ch,
+             rba, &buf, len, error);
   }
   return error;
-}
-
-inline void SC16IS75XComponent::write_io_register_(int reg_number, uint8_t value) {
-  this->write_sc16is75x_register_(reg_number, 0, &value, 1);
-}
-
-inline uint8_t SC16IS75XComponent::read_io_register_(int reg_number) {
-  this->read_sc16is75x_register_(reg_number, 0, &buffer_, 1);
-  return buffer_;
 }
 
 bool SC16IS75XComponent::read_pin_val_(uint8_t pin) {
-  this->input_state_ = this->read_io_register_(SC16IS75X_REG_IOP);
+  this->read_sc16is75x_register_(SC16IS75X_REG_IOP, 0, &this->input_state_);
   ESP_LOGVV(TAG, "reading input pin %d in_state %s", pin, i2s_(input_state_));
   // TODO log when value changed from last call ?
   return this->input_state_ & (1 << pin);
@@ -95,19 +84,19 @@ bool SC16IS75XComponent::read_pin_val_(uint8_t pin) {
 void SC16IS75XComponent::write_pin_val_(uint8_t pin, bool value) {
   value ? this->output_state_ |= (1 << pin) : this->output_state_ &= ~(1 << pin);
   ESP_LOGV(TAG, "writing output pin %d out_state %s", pin, i2s_(output_state_));
-  this->write_io_register_(SC16IS75X_REG_IOP, this->output_state_);
+  this->write_sc16is75x_register_(SC16IS75X_REG_IOP, 0, &this->output_state_);
 }
 
 void SC16IS75XComponent::set_pin_direction_(uint8_t pin, gpio::Flags flags) {
   if (flags == gpio::FLAG_INPUT)
     this->pin_config_ &= ~(1 << pin);  // clear bit (input mode)
   else if (flags == gpio::FLAG_OUTPUT)
-    this->pin_config_ |= 1 << pin;     // set bit (output mode)
+    this->pin_config_ |= 1 << pin;  // set bit (output mode)
   else
     ESP_LOGE(TAG, "pin %d direction invalid", pin);
 
   ESP_LOGD(TAG, "setting pin %d direction to %d pin_config=%s", pin, flags, i2s_(pin_config_));
-  this->write_io_register_(SC16IS75X_REG_IOD, ~this->pin_config_);
+  this->write_sc16is75x_register_(SC16IS75X_REG_IOD, 0, &this->pin_config_);  // TODO check ~
 }
 
 //
@@ -115,13 +104,13 @@ void SC16IS75XComponent::set_pin_direction_(uint8_t pin, gpio::Flags flags) {
 //
 void SC16IS75XComponent::setup() {
   const char *model_name = (model_ == SC16IS750_MODEL) ? "SC16IS750" : "SC16IS752";
-  ESP_LOGCONFIG(TAG, "Setting up SC16IS75X:%d i2c_addr @%02X with %d UARTs...", get_num_(), address_,
-                (int) children_.size());
-  // we read anything just to test communication
-  if (read_sc16is75x_register_(0, 0, &buffer_, 1) != i2c::ERROR_OK) {
-    ESP_LOGCONFIG(TAG, "%s failed", model_name);
-    this->mark_failed();
-  }
+  ESP_LOGCONFIG(TAG, "Setting up SC16IS75X:%s i2c_addr @%02X with %d UARTs...", get_name(), address_, children_.size());
+
+  // // we read anything just to test communication
+  // if (read_sc16is75x_register_(0, 0, &data_, 1) != i2c::ERROR_OK) {
+  //   ESP_LOGCONFIG(TAG, "%s failed", model_name);
+  //   this->mark_failed();
+  // }
 
   // we can now setup our children
   for (auto child : this->children_)
@@ -130,7 +119,7 @@ void SC16IS75XComponent::setup() {
 
 void SC16IS75XComponent::dump_config() {
   const char *model_name = (model_ == SC16IS750_MODEL) ? "SC16IS750" : "SC16IS752";
-  ESP_LOGCONFIG(TAG, "SC16IS75X:%d with %d UARTs...", get_num_(), (int) children_.size());
+  ESP_LOGCONFIG(TAG, "SC16IS75X:%s with %d UARTs...", get_name(), children_.size());
   ESP_LOGCONFIG(TAG, "  model %s", model_name);
   ESP_LOGCONFIG(TAG, "  crystal %d", crystal_);
 
@@ -147,29 +136,18 @@ void SC16IS75XComponent::dump_config() {
 ///////////////////////////////////////////////////////////////////////////////
 // The SC16IS75XChannel methods
 ///////////////////////////////////////////////////////////////////////////////
-
-uint8_t SC16IS75XChannel::read_uart_register_(int reg_number) {
-  this->parent_->buffer_ = 0;  // for debug help
-  this->parent_->read_sc16is75x_register_(reg_number, this->channel_, &this->parent_->buffer_, 1);
-  return this->parent_->buffer_;
-}
-
-void SC16IS75XChannel::write_uart_register_(int reg_number, uint8_t value) {
-  this->parent_->write_sc16is75x_register_(reg_number, this->channel_, &value, 1);
-}
-
 void SC16IS75XChannel::setup_channel() {
-  ESP_LOGCONFIG(TAG, "  Setting up UART %d:%d...", this->parent_->get_num_(), this->channel_);
+  ESP_LOGCONFIG(TAG, "  Setting up UART %d:%d...", this->parent_->get_name(), this->channel_);
 
   // reset and enable the fifo
   uint8_t fcr = 0x7;
-  this->write_uart_register_(SC16IS75X_REG_FCR, fcr);
+  this->parent_->write_sc16is75x_register_(SC16IS75X_REG_FCR, this->channel_, &fcr);
   this->set_baudrate_();
   this->set_line_param_();
 }
 
 void SC16IS75XChannel::dump_channel() {
-  ESP_LOGCONFIG(TAG, "  UART bus %d:%d...", parent_->get_num_(), channel_);
+  ESP_LOGCONFIG(TAG, "  UART bus %d:%d...", this->parent_->get_name(), channel_);
   ESP_LOGCONFIG(TAG, "    baudrate %d Bd", baud_rate_);
   ESP_LOGCONFIG(TAG, "    data_bits %d", data_bits_);
   ESP_LOGCONFIG(TAG, "    stop_bits %d", stop_bits_);
@@ -177,7 +155,8 @@ void SC16IS75XChannel::dump_channel() {
 }
 
 void SC16IS75XChannel::set_line_param_() {
-  auto lcr = this->read_uart_register_(SC16IS75X_REG_LCR);
+  uint8_t lcr;
+  this->parent_->read_sc16is75x_register_(SC16IS75X_REG_LCR, this->channel_, &lcr);
   lcr &= 0xC0;           // Clear the lower six bit of LCR (LCR[0] to LCR[5]) data bits
   switch (data_bits_) {  // data length settings
     case 5:
@@ -208,9 +187,9 @@ void SC16IS75XChannel::set_line_param_() {
       break;  // no parity
   }
   // update register
-  this->write_uart_register_(SC16IS75X_REG_LCR, lcr);
-  ESP_LOGV(TAG, "UART %d:%d line set to %d data_bits, %d stop_bits, and %s parity [%s]", parent_->get_num_(), channel_,
-           data_bits_, stop_bits_, parity_to_str(parity_), i2s_(lcr));
+  this->parent_->write_sc16is75x_register_(SC16IS75X_REG_LCR, this->channel_, &lcr);
+  ESP_LOGV(TAG, "UART %s:%d line set to %d data_bits, %d stop_bits, and %s parity [%s]", this->parent_->get_name(),
+           channel_, data_bits_, stop_bits_, parity_to_str(parity_), i2s_(lcr));
 }
 
 void SC16IS75XChannel::set_baudrate_() {
@@ -231,21 +210,34 @@ void SC16IS75XChannel::set_baudrate_() {
   // we compute and round the divisor
   uint32_t divisor = (double) upper_part / (double) lower_part;
   uint32_t actual_baudrate = (upper_part / divisor) / 16;
+  const uint8_t low = (uint8_t) divisor;
+  const uint8_t high = (uint8_t) (divisor >> 8);
 
-  auto lcr = read_uart_register_(SC16IS75X_REG_LCR);
+  uint8_t lcr;
+  this->parent_->write_sc16is75x_register_(SC16IS75X_REG_LCR, this->channel_, &lcr);
   lcr |= 0x80;  // set LCR[7] to enable special registers
-  this->write_uart_register_(SC16IS75X_REG_LCR, (uint8_t) lcr);
-  this->write_uart_register_(SC16IS75X_REG_DLL, (uint8_t) divisor);
-  this->write_uart_register_(SC16IS75X_REG_DLH, (uint8_t) (divisor >> 8));
+  this->parent_->write_sc16is75x_register_(SC16IS75X_REG_LCR, this->channel_, &lcr);
+  this->parent_->write_sc16is75x_register_(SC16IS75X_REG_DLL, this->channel_, &low);
+  this->parent_->write_sc16is75x_register_(SC16IS75X_REG_DLH, this->channel_, &high);
   lcr &= 0x7F;  // reset LCR[7] to disable special registers
-  this->write_uart_register_(SC16IS75X_REG_LCR, lcr);
+  this->parent_->write_sc16is75x_register_(SC16IS75X_REG_LCR, this->channel_, &lcr);
 
   if (actual_baudrate == baud_rate_)
-    ESP_LOGV(TAG, "UART %d:%d Crystal=%d div=%d(%d/%d) Requested=%d Bd => actual=%d Bd", parent_->get_num_(), channel_,
-             parent_->crystal_, divisor, upper_part, lower_part, baud_rate_, actual_baudrate);
+    ESP_LOGV(TAG, "UART %d:%d Crystal=%d div=%d(%d/%d) Requested=%d Bd => actual=%d Bd", this->parent_->get_name(),
+             this->channel_, this->parent_->crystal_, divisor, upper_part, lower_part, this->baud_rate_,
+             actual_baudrate);
   else
-    ESP_LOGW(TAG, "UART %d:%d Crystal=%d div=%d(%d/%d) Requested=%d Bd => actual=%d Bd", parent_->get_num_(), channel_,
-             parent_->crystal_, divisor, upper_part, lower_part, baud_rate_, actual_baudrate);
+    ESP_LOGW(TAG, "UART %d:%d Crystal=%d div=%d(%d/%d) Requested=%d Bd => actual=%d Bd", this->parent_->get_name(),
+             this->channel_, this->parent_->crystal_, divisor, upper_part, lower_part, this->baud_rate_,
+             actual_baudrate);
+}
+
+bool SC16IS75XChannel::write_data_(const uint8_t *buffer, size_t len) {
+  return this->parent_->write_sc16is75x_register_(SC16IS75X_REG_THR, this->channel_, buffer, len);
+}
+
+bool SC16IS75XChannel::read_data_(uint8_t *buffer, size_t len) {
+  return parent_->read_sc16is75x_register_(SC16IS75X_REG_RHR, channel_, buffer, len);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -272,7 +264,7 @@ void SC16IS75XGPIOPin::digital_write(bool value) {
 
 std::string SC16IS75XGPIOPin::dump_summary() const {
   char buffer[32];
-  snprintf(buffer, sizeof(buffer), "%u via SC16IS75X:%d", this->pin_, this->parent_->get_num_());
+  snprintf(buffer, sizeof(buffer), "%u via SC16IS75X:%d", this->pin_, this->parent_->get_name());
   return buffer;
 }
 
@@ -282,7 +274,7 @@ std::string SC16IS75XGPIOPin::dump_summary() const {
 #define TEST_COMPONENT
 #ifdef TEST_COMPONENT
 
-void SC16IS75XComponent::test_gpio() {
+void SC16IS75XComponent::test_gpio_() {
   static bool init{false};
   if (!init) {
     init = true;
@@ -318,12 +310,12 @@ void SC16IS75XComponent::loop() {
   loop_time = millis();
 
   for (auto i = 0; i < children_.size(); i++) {
-    snprintf(preamble, sizeof(preamble), "SC16IS75X_%d_Ch_%d", get_num_(), i);
+    snprintf(preamble, sizeof(preamble), "SC16IS75X_%d_Ch_%d", get_name(), i);
     children_[i]->uart_send_test(preamble);
     children_[i]->uart_receive_test(preamble, test_mode_ > 1);
   }
 
-  test_gpio();
+  // test_gpio_();
 
   ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
 }
