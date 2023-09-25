@@ -92,9 +92,9 @@ Typical usage see @ref wa_ss_
 // The UARTBase methods
 ///////////////////////////////////////////////////////////////////////////////
 void UARTBase::write_array(const uint8_t *buffer, size_t len) {
-  if (len > FIFO_SIZE) {
-    ESP_LOGE(TAG, "Write buffer invalid call: requested %d bytes max size %d ...", len, FIFO_SIZE);
-    len = FIFO_SIZE;
+  if (len > this->fifo_size_()) {
+    ESP_LOGE(TAG, "Write buffer invalid call: requested %d bytes max size %d ...", len, this->fifo_size_());
+    len = this->fifo_size_();
   }
 
   // if we had a flush request it is time to check it has been honored
@@ -112,20 +112,8 @@ void UARTBase::write_array(const uint8_t *buffer, size_t len) {
     }
     this->flush_requested_ = false;  // we are all set
   }
-  this->write_data_(buffer, len);
+  this->write_data_(buffer, len);  // send the buffer
 }
-
-// void GenUARTChannel::write_array(const uint8_t *buffer, size_t len) {
-//   if (len > fifo_size()) {
-//     ESP_LOGE(TAG, "Write buffer invalid call: requested %d bytes max size %d ...", len, fifo_size());
-//     len = fifo_size();
-//   }
-//   if (safe_ && (len > (fifo_size() - tx_in_fifo()))) {
-//     len = fifo_size() - tx_in_fifo();  // send as much as possible
-//     ESP_LOGE(TAG, "Write buffer overrun: can only send %d bytes ...", len);
-//   }
-//   write_data(buffer, len);
-// }
 
 bool UARTBase::read_array(uint8_t *buffer, size_t len) {
   bool status = true;
@@ -135,9 +123,9 @@ bool UARTBase::read_array(uint8_t *buffer, size_t len) {
   // there are bytes in the fifo,in which case we read them
   // immediately so we do not delay until the next loop transfer.
   if (!available)
-    available = rx_fifo_to_buffer_();
+    available = this->rx_fifo_to_buffer_();
 
-  if ((len > FIFO_SIZE) || (len > available)) {
+  if ((len > this->fifo_size_()) || (len > available)) {
     ESP_LOGVV(TAG, "read_array buffer underflow requested %d bytes available %d ...", len, available);
     len = available;
     status = false;  // invalid call or not enough char
@@ -149,47 +137,7 @@ bool UARTBase::read_array(uint8_t *buffer, size_t len) {
   return status;
 }
 
-// bool GenUARTChannel::read_array(uint8_t *buffer, size_t len) {
-//   if (len > fifo_size()) {
-//     ESP_LOGE(TAG, "Read buffer invalid call: requested %d bytes max size %d ...", len, fifo_size());
-//     return false;
-//   }
-
-//   if (!peek_buffer_.empty) {  // test peek buffer
-//     *buffer++ = peek_buffer_.data;
-//     peek_buffer_.empty = true;
-//     if (len-- == 1)
-//       return true;
-//   }
-
-//   bool status = true;
-//   uint32_t start_time = millis();
-//   // in safe mode we check that we have received the requested characters
-//   while (safe_ && rx_in_fifo() < len) {
-//     if (millis() - start_time > 100) {  // we wait as much as 100 ms
-//       ESP_LOGE(TAG, "Read buffer underrun: requested %d bytes only received %d ...", len, rx_in_fifo());
-//       len = rx_in_fifo();               // set length to what is in the buffer
-//       status = false;
-//       break;
-//     }
-//     yield();  // reschedule our thread at end of queue
-//   }
-//   read_data(buffer, len);
-//   return status;
-// }
-
-bool UARTBase::peek_byte(uint8_t *buffer) { return this->receive_buffer_.peek(*buffer); }
-
-// bool UARTBase::peek_byte(uint8_t *buffer) {
-//   if (safe_ && peek_buffer_.empty && available() == 0)
-//     return false;
-//   if (peek_buffer_.empty) {
-//     peek_buffer_.empty = false;
-//     read_data(&peek_buffer_.data, 1);
-//   }
-//   *buffer = peek_buffer_.data;
-//   return true;
-// }
+inline bool UARTBase::peek_byte(uint8_t *buffer) { return this->receive_buffer_.peek(*buffer); }
 
 int UARTBase::available() {
   auto available = this->receive_buffer_.count();
@@ -198,7 +146,7 @@ int UARTBase::available() {
   // there are bytes in the fifo,in which case we do not want to
   // delay reading them in the next loop.
   if (!available)
-    available = rx_fifo_to_buffer_();
+    available = this->rx_fifo_to_buffer_();
 
   return available;
 }
@@ -210,16 +158,6 @@ void UARTBase::flush() {
   // to go
   this->flush_requested_ = true;
 }
-// void GenUARTChannel::flush() {
-//   uint32_t start_time = millis();
-//   while (tx_in_fifo()) {  // wait until buffer empty
-//     if (millis() - start_time > 100) {
-//       ESP_LOGE(TAG, "Flush timed out: still %d bytes not sent...", fifo_size() - tx_in_fifo());
-//       return;
-//     }
-//     yield();  // reschedule thread to avoid blocking
-//   }
-// }
 
 size_t UARTBase::rx_fifo_to_buffer_() {
   // we look if some characters has been received in the fifo
@@ -273,7 +211,7 @@ void print_buffer(std::vector<uint8_t> buffer) {
 /// @brief test the write_array method
 void UARTBase::uart_send_test(char *preamble) {
   auto start_exec = millis();
-  uint8_t to_send = FIFO_SIZE - tx_in_fifo_();
+  uint8_t to_send = this->fifo_size_() - tx_in_fifo_();
   uint8_t to_flush = tx_in_fifo_();  // byte in buffer before execution
   this->flush();                     // we wait until they are gone
   uint8_t remains = tx_in_fifo_();   // remaining bytes if not null => flush timeout

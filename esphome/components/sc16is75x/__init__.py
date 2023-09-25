@@ -100,6 +100,7 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
+    cg.add(var.set_name(str(config[CONF_ID])))
     cg.add(var.set_model(config[CONF_MODEL]))
     cg.add(var.set_crystal(config[CONF_CRYSTAL]))
     cg.add(var.set_test_mode(config[CONF_TEST_MODE]))
@@ -107,6 +108,7 @@ async def to_code(config):
     await i2c.register_i2c_device(var, config)
     for uart_elem in config[CONF_UART]:
         chan = cg.new_Pvariable(uart_elem[CONF_UART_ID])
+        cg.add(chan.set_channel_name(str(uart_elem[CONF_UART_ID])))
         cg.add(chan.set_parent(var))
         cg.add(chan.set_channel(uart_elem[CONF_CHANNEL]))
         cg.add(chan.set_baud_rate(uart_elem[CONF_BAUD_RATE]))

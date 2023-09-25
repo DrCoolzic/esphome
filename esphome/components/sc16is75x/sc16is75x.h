@@ -6,11 +6,13 @@
 #include <bitset>
 #include "esphome/core/component.h"
 #include "esphome/components/i2c/i2c.h"
-// #include "esphome/components/uart/uart.h"
 #include "uart_base.h"
 
 namespace esphome {
 namespace sc16is75x {
+
+// size of the fifo
+constexpr size_t FIFO_SIZE = 64;
 
 // General sc16is75x registers
 constexpr uint8_t SC16IS75X_REG_RHR = 0x00;  // 00 receive holding register (r) with a 64-bytes FIFO
@@ -64,9 +66,9 @@ using Channel = uint8_t;
 ///////////////////////////////////////////////////////////////////////////////
 class SC16IS75XComponent : public Component, public i2c::I2CDevice {
  public:
-  void set_model(SC16IS75XComponentModel model) { model_ = model; }
-  void set_crystal(uint32_t crystal) { crystal_ = crystal; }
-  void set_test_mode(int test_mode) { test_mode_ = test_mode; }
+  void set_model(SC16IS75XComponentModel model) { this->model_ = model; }
+  void set_crystal(uint32_t crystal) { this->crystal_ = crystal; }
+  void set_test_mode(int test_mode) { this->test_mode_ = test_mode; }
   void set_name(std::string name) { this->name_ = std::move(name); }
   const char *get_name() { return this->name_.c_str(); }
 
@@ -87,8 +89,10 @@ class SC16IS75XComponent : public Component, public i2c::I2CDevice {
   /// @brief All write calls to component registers are done through this method
   /// @param reg_address the register address
   /// @param channel the channel number. Only significant for UART registers
-  /// @param data to write
-  i2c::ErrorCode write_sc16is75x_register_(uint8_t reg_address, Channel channel, const uint8_t *data, size_t len = 1);
+  /// @param buffer to write
+  /// @param len length of the buffer to write
+  /// @return the i2c error code
+  i2c::ErrorCode write_sc16is75x_register_(uint8_t reg_address, Channel channel, const uint8_t *buffer, size_t len = 1);
 
   /// @brief All read calls to I2C registers are done through this method
   /// @param reg_address the register address
@@ -107,6 +111,7 @@ class SC16IS75XComponent : public Component, public i2c::I2CDevice {
   /// Helper method to set the pin mode of a pin.
   void set_pin_direction_(uint8_t pin, gpio::Flags flags);
 
+  /// @brief for testing the GPIO pins
   void test_gpio_();
 
   /// pin config mask: 1 means OUTPUT, 0 means INPUT
@@ -116,13 +121,13 @@ class SC16IS75XComponent : public Component, public i2c::I2CDevice {
   /// input pin states: 1 means HIGH, 0 means LOW
   uint8_t input_state_{0x00};
 
-  SC16IS75XComponentModel model_{SC16IS752_MODEL};  ///< model of the component
-  uint32_t crystal_;                                ///< default crystal for SC16IS752
-  uint8_t data_{0};                                 ///< one byte buffer
-  std::vector<SC16IS75XChannel *> children_{};      ///< the list of SC16IS75XChannel UART children
-  int test_mode_{0};                                ///< test_mode value (0 no test)
-  std::string name_;                                ///< store name of entity
-  bool initialized_{false};                         ///< true when component initialized
+  SC16IS75XComponentModel model_;               ///< model of the component
+  uint32_t crystal_;                            ///< crystal frequency
+  uint8_t data_{0};                             ///< one byte buffer
+  std::vector<SC16IS75XChannel *> children_{};  ///< the list of SC16IS75XChannel UART children
+  int test_mode_{0};                            ///< test_mode value (0 no test)
+  std::string name_;                            ///< store name of entity
+  bool initialized_{false};                     ///< true when component initialized
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -133,6 +138,7 @@ class SC16IS75XComponent : public Component, public i2c::I2CDevice {
 ///////////////////////////////////////////////////////////////////////////////
 class SC16IS75XChannel : public uart_base::UARTBase {
  public:
+  SC16IS75XChannel() : UARTBase(FIFO_SIZE) {}
   void set_parent(SC16IS75XComponent *parent) {
     this->parent_ = parent;
     this->parent_->children_.push_back(this);  // add ourself to the list (vector)
@@ -145,17 +151,17 @@ class SC16IS75XChannel : public uart_base::UARTBase {
 
  protected:
   friend class SC16IS75XComponent;
-  /// @brief Should return the number of bytes available in the receiver fifo
+  /// @brief returns the number of bytes available in the receiver fifo
   /// @return the number of bytes we can read
   size_t rx_in_fifo_() override { return this->read_uart_register_(SC16IS75X_REG_RXF); }
 
-  /// @brief Should return the number of bytes available in the transmitter fifo
+  /// @brief returns the number of bytes available in the transmitter fifo
   /// @return the number of bytes we can write
-  virtual size_t tx_in_fifo_() override { return uart_base::FIFO_SIZE - this->read_uart_register_(SC16IS75X_REG_TXF); }
+  virtual size_t tx_in_fifo_() override { return this->fifo_size_() - this->read_uart_register_(SC16IS75X_REG_TXF); }
 
-  inline bool tx_fifo_is_not_empty_() override {
-    return !this->read_uart_register_(SC16IS75X_REG_LSR) & 0x40;  // TODO check
-  }
+  inline bool tx_fifo_is_not_empty_() override { return !this->read_uart_register_(SC16IS75X_REG_LSR) & 0x40; }
+
+  const size_t fifo_size_() override { return FIFO_SIZE; }
 
   /// @brief Write data to the transmitter fifo from a buffer
   /// @param buffer the buffer
@@ -174,14 +180,13 @@ class SC16IS75XChannel : public uart_base::UARTBase {
     this->parent_->read_sc16is75x_register_(reg_address, this->channel_, &this->data_);
     return this->data_;
   }
-  // void write_uart_register_(int reg_address, uint8_t value);
   void set_line_param_();
   void set_baudrate_();
 
-  SC16IS75XComponent *parent_;
-  Channel channel_;
-  uint8_t data_;      ///< one byte buffer
-  std::string name_;  ///< name of the entity
+  SC16IS75XComponent *parent_;  ///< our parent
+  Channel channel_;             ///< our channel number
+  uint8_t data_{0};             ///< one byte buffer
+  std::string name_;            ///< name of the entity
 };
 
 ///////////////////////////////////////////////////////////////////////////////

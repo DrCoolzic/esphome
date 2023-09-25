@@ -1,16 +1,12 @@
 /// @file uart_base.h
 /// @author @DrCoolzic
-/// @brief declaration of ComponentChannel template class
+/// @brief declaration of UARTBase class and RingBuffer Class
 
 #pragma once
 #include "esphome/components/uart/uart.h"
 
 namespace esphome {
 namespace uart_base {
-
-/// @brief size of the ring buffer
-constexpr size_t FIFO_SIZE = 128;
-constexpr size_t RING_BUFFER_SIZE = 128;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief This is an helper class that provides a simple ring buffers
@@ -33,16 +29,20 @@ constexpr size_t RING_BUFFER_SIZE = 128;
 /// very quickly when requested one by one.
 /// @image html read_cycles.png
 ///////////////////////////////////////////////////////////////////////////////
-template<typename T, size_t SIZE> class RingBuffer {
+class RingBuffer {
  public:
+  /// @brief Ctor : initialize variables with the given size
+  /// @param size size of the desired RingBuffer
+  RingBuffer(const size_t size) : size_(size) { rb_.resize(size); }
+
   /// @brief pushes an item at the tail of the fifo
   /// @param item item to push
   /// @return true if item has been pushed, false il item was not pushed (buffer full)
-  bool push(const T item) {
+  bool push(const uint8_t item) {
     if (is_full())
       return false;
     rb_[head_] = item;
-    head_ = (head_ + 1) % SIZE;
+    head_ = (head_ + 1) % rb_.size();
     count_++;
     return true;
   }
@@ -50,11 +50,11 @@ template<typename T, size_t SIZE> class RingBuffer {
   /// @brief return and remove the item at head of the fifo
   /// @param item item read
   /// @return true if item has been retrieved, false il no item was found (buffer empty)
-  bool pop(T &item) {
+  bool pop(uint8_t &item) {
     if (is_empty())
       return false;
     item = rb_[tail_];
-    tail_ = (tail_ + 1) % SIZE;
+    tail_ = (tail_ + 1) % rb_.size();
     count_--;
     return true;
   }
@@ -62,7 +62,7 @@ template<typename T, size_t SIZE> class RingBuffer {
   /// @brief return the value of the item at fifo's head without removing it
   /// @param item pointer to item to return
   /// @return true if item has been retrieved, false il no item was found (buffer empty)
-  bool peek(T &item) {
+  bool peek(uint8_t &item) {
     if (is_empty())
       return false;
     item = rb_[tail_];
@@ -75,7 +75,7 @@ template<typename T, size_t SIZE> class RingBuffer {
 
   /// @brief test is the ring buffer is full ?
   /// @return true if full
-  bool is_full() { return (count_ == SIZE); }
+  bool is_full() { return (count_ == rb_.size()); }
 
   /// @brief return the number of item in the ring buffer
   /// @return the count
@@ -83,20 +83,22 @@ template<typename T, size_t SIZE> class RingBuffer {
 
   /// @brief returns the number of free positions in the buffer
   /// @return how many items can be added
-  size_t free() { return SIZE - count_; }
+  size_t free() { return rb_.size() - count_; }
 
   /// @brief clear the buffer content
   void clear() { head_ = tail_ = count_ = 0; }
 
  private:
-  std::array<T, SIZE> rb_{0};
-  int head_{0};      // points to the next element to write
-  int tail_{0};      // points to the next element to read
-  size_t count_{0};  // count number of element in the buffer
+  std::vector<uint8_t> rb_;  // The ring buffer
+  const size_t size_;        // size of the ring buffer
+  int head_{0};              // points to the next element to write
+  int tail_{0};              // points to the next element to read
+  size_t count_{0};          // count number of element currently in the buffer
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Describes
+/// @brief Describes the UARTBase class that implements the basic read/write
+/// functions of UARTComponent so we do not duplicate the code
 ///
 /// This class derives from the virtual @ref uart::UARTComponent class.
 ///
@@ -115,6 +117,8 @@ template<typename T, size_t SIZE> class RingBuffer {
 ///////////////////////////////////////////////////////////////////////////////
 class UARTBase : public uart::UARTComponent {
  public:
+  UARTBase(const size_t size) : receive_buffer_(RingBuffer(size)) {}
+
   //
   // we override the virtual class from UARTComponent
   //
@@ -184,6 +188,10 @@ class UARTBase : public uart::UARTComponent {
   /// @brief this cannot happen with external uart
   void check_logger_conflict() override {}
 
+  /// @brief transfer the bytes from the HW fifo to the ring buffer
+  /// @return the number of bytes transferred
+  ///
+  /// This method should be called from the loop() in derived class
   size_t rx_fifo_to_buffer_();
 
   //
@@ -214,11 +222,14 @@ class UARTBase : public uart::UARTComponent {
   /// @return true if succeed false otherwise
   virtual bool write_data_(const uint8_t *buffer, size_t len) = 0;
 
+  /// @brief return the size of the fifo
+  virtual const size_t fifo_size_() = 0;
+
   void uart_send_test(char *preamble);
   void uart_receive_test(char *preamnle, bool print_buf = true);
-  /// @brief the buffer where we store temporarily the bytes received
-  RingBuffer<uint8_t, RING_BUFFER_SIZE> receive_buffer_;
+
   bool flush_requested_{false};  ///< flush was requested but not honored
+  RingBuffer receive_buffer_;    ///< The receive buffer
 };
 
 }  // namespace uart_base
