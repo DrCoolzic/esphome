@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.components import i2c
+from esphome.components import spi
 from esphome.components import uart
 from esphome.const import (
     CONF_BAUD_RATE,
@@ -16,11 +16,11 @@ from esphome.const import (
 )
 
 CODEOWNERS = ["@DrCoolZic"]
-DEPENDENCIES = ["i2c"]
+DEPENDENCIES = ["spi"]
 
 sc16is75x_ns = cg.esphome_ns.namespace("sc16is75x")
 SC16IS75XComponent = sc16is75x_ns.class_(
-    "SC16IS75XComponent", cg.Component, i2c.I2CDevice
+    "SC16IS75XComponent", cg.Component, spi.SPIDevice
 )
 SC16IS75XChannel = sc16is75x_ns.class_(
     "SC16IS75XChannel", cg.Component, uart.UARTComponent
@@ -92,7 +92,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     )
-    .extend(i2c.i2c_device_schema(0x90))
+    .extend(spi.spi_device_schema())
     .extend(cv.COMPONENT_SCHEMA),
     post_validate,
 )
@@ -105,7 +105,7 @@ async def to_code(config):
     cg.add(var.set_crystal(config[CONF_CRYSTAL]))
     cg.add(var.set_test_mode(config[CONF_TEST_MODE]))
     await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    await spi.register_spi_device(var, config)
     for uart_elem in config[CONF_UART]:
         chan = cg.new_Pvariable(uart_elem[CONF_UART_ID])
         cg.add(chan.set_channel_name(str(uart_elem[CONF_UART_ID])))

@@ -1,15 +1,15 @@
-/// @file sc16s75x.h
+/// @file sc16is75x_spi.h
 /// @author @DrCoolzic
-/// @brief sc16is75x interface declaration
+/// @brief sc16is75x_spi interface declaration
 
 #pragma once
 #include <bitset>
 #include "esphome/core/component.h"
-#include "esphome/components/i2c/i2c.h"
+#include "esphome/components/spi/spi.h"
 #include "uart_base.h"
 
 namespace esphome {
-namespace sc16is75x {
+namespace sc16is75x_spi {
 
 // size of the fifo
 constexpr size_t FIFO_SIZE = 64;
@@ -52,19 +52,20 @@ class SC16IS75XChannel;  ///< forward declaration
 using Channel = uint8_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief This class describes a SC16IS75X I²C component.
+/// @brief This class describes a SC16IS75X_SPI_Component.
 ///
 /// This class derives from two @ref esphome classes:
-/// - The @ref Virtual Component class. From this class we redefine the @ref Component::setup(),
-///   @ref Component::dump_config() and @ref Component::get_setup_priority() methods
-/// - The @ref i2c::I2CDevice class. From which we use some methods
+/// - The Virtual @ref Component class.
+/// - The @ref spi::SPIDevice class.
 ///
 /// We have two related class :
 /// - The @ref SC16IS75XChannel class that takes cares of the UART related methods
 /// - The @ref SC16IS75XGPIOPin class
 ///   that takes care of the details for the GPIO pins of the component.
 ///////////////////////////////////////////////////////////////////////////////
-class SC16IS75XComponent : public Component, public i2c::I2CDevice {
+class SC16IS75X_SPI_Component : public Component,
+                                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                                      spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_10MHZ> {
  public:
   void set_model(SC16IS75XComponentModel model) { this->model_ = model; }
   void set_crystal(uint32_t crystal) { this->crystal_ = crystal; }
@@ -86,21 +87,19 @@ class SC16IS75XComponent : public Component, public i2c::I2CDevice {
   friend class SC16IS75XChannel;
   friend class SC16IS75XGPIOPin;
 
-  /// @brief All write calls to component registers are done through this method
+  /// @brief All write calls to the component registers are done through this method
   /// @param reg_address the register address
   /// @param channel the channel number. Only significant for UART registers
   /// @param buffer to write
-  /// @param len length of the buffer to write
-  /// @return the i2c error code
-  i2c::ErrorCode write_sc16is75x_register_(uint8_t reg_address, Channel channel, const uint8_t *buffer, size_t len = 1);
+  /// @param length length of the buffer to write
+  void write_sc16is75x_register_(uint8_t reg_address, Channel channel, const uint8_t *buffer, size_t length = 1);
 
-  /// @brief All read calls to I2C registers are done through this method
+  /// @brief All read calls to the component registers are done through this method
   /// @param reg_address the register address
   /// @param channel the channel number. Only significant for UART registers
   /// @param buffer pointer to the buffer
-  /// @param len number of bytes to read
-  /// @return the i2c error codes
-  i2c::ErrorCode read_sc16is75x_register_(uint8_t reg_address, Channel channel, uint8_t *buffer, size_t len = 1);
+  /// @param length number of bytes to read
+  void read_sc16is75x_register_(uint8_t reg_address, Channel channel, uint8_t *buffer, size_t length = 1);
 
   /// Helper method to read the value of a pin.
   bool read_pin_val_(uint8_t pin);
@@ -125,23 +124,23 @@ class SC16IS75XComponent : public Component, public i2c::I2CDevice {
   uint32_t crystal_;                            ///< crystal frequency
   uint8_t data_{0};                             ///< one byte buffer
   std::vector<SC16IS75XChannel *> children_{};  ///< the list of SC16IS75XChannel UART children
-  int test_mode_{0};                            ///< test_mode value (0 no test)
+  int test_mode_;                               ///< test_mode value (0 no test)
   std::string name_;                            ///< store name of entity
   bool initialized_{false};                     ///< true when component initialized
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Describes the UART part of a SC16IS75X I²C component.
+/// @brief Describes the UART part of a SC16IS75X component.
 ///
-/// This class derives from the @ref gen_uart::GenUARTChannel virtual class.
+/// This class derives from the @ref uart_base::UARTBase virtual class.
 /// we must therefore provide several methods for the virtual class
 ///////////////////////////////////////////////////////////////////////////////
 class SC16IS75XChannel : public uart_base::UARTBase {
  public:
   SC16IS75XChannel() : UARTBase(FIFO_SIZE) {}
-  void set_parent(SC16IS75XComponent *parent) {
+  void set_parent(SC16IS75X_SPI_Component *parent) {
     this->parent_ = parent;
-    this->parent_->children_.push_back(this);  // add ourself to the list (vector)
+    this->parent_->children_.push_back(this);  // add ourself to the vector list
   }
   void set_channel(Channel channel) { this->channel_ = channel; }
   void set_channel_name(std::string name) { this->name_ = std::move(name); }
@@ -150,7 +149,7 @@ class SC16IS75XChannel : public uart_base::UARTBase {
   void dump_channel();
 
  protected:
-  friend class SC16IS75XComponent;
+  friend class SC16IS75X_SPI_Component;
   /// @brief returns the number of bytes available in the receiver fifo
   /// @return the number of bytes we can read
   size_t rx_in_fifo_() override { return this->read_uart_register_(SC16IS75X_REG_RXF); }
@@ -183,10 +182,10 @@ class SC16IS75XChannel : public uart_base::UARTBase {
   void set_line_param_();
   void set_baudrate_();
 
-  SC16IS75XComponent *parent_;  ///< our parent
-  Channel channel_;             ///< our channel number
-  uint8_t data_{0};             ///< one byte buffer
-  std::string name_;            ///< name of the entity
+  SC16IS75X_SPI_Component *parent_;  ///< our parent
+  Channel channel_;                  ///< our channel number
+  uint8_t data_{0};                  ///< one byte buffer
+  std::string name_;                 ///< name of the entity
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -194,7 +193,7 @@ class SC16IS75XChannel : public uart_base::UARTBase {
 ///////////////////////////////////////////////////////////////////////////////
 class SC16IS75XGPIOPin : public GPIOPin {
  public:
-  void set_parent(SC16IS75XComponent *parent) { this->parent_ = parent; }
+  void set_parent(SC16IS75X_SPI_Component *parent) { this->parent_ = parent; }
   void set_pin(uint8_t pin) { this->pin_ = pin; }
   void set_inverted(bool inverted) { this->inverted_ = inverted; }
   void set_flags(gpio::Flags flags) { this->flags_ = flags; }
@@ -210,11 +209,11 @@ class SC16IS75XGPIOPin : public GPIOPin {
   std::string dump_summary() const override;
 
  protected:
-  SC16IS75XComponent *parent_{nullptr};
+  SC16IS75X_SPI_Component *parent_{nullptr};
   uint8_t pin_;
   bool inverted_;
   gpio::Flags flags_;
 };
 
-}  // namespace sc16is75x
+}  // namespace sc16is75x_spi
 }  // namespace esphome

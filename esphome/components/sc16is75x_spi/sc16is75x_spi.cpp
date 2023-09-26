@@ -1,13 +1,13 @@
 /// @file sc16s75x.cpp
 /// @author @DrCoolzic
-/// @brief sc16is75x implementation
+/// @brief sc16is75x_spi implementation
 
-#include "sc16is75x.h"
+#include "sc16is75x_spi.h"
 
 namespace esphome {
-namespace sc16is75x {
+namespace sc16is75x_spi {
 
-static const char *const TAG = "sc16is75x";
+static const char *const TAG = "sc16is75x_spi";
 
 /// @brief Converts the parity enumerator to a string
 /// @param parity enum
@@ -38,56 +38,56 @@ static const char *read_reg_to_str[] = {"RHR", "IER", "IIR", "LCR", "MCR", "LSR"
 
 // the register address on the bus is build from the register value and the channel value.
 // note that for I/O related register the chanel value is not significant so we set to zero
-inline static uint8_t reg_bus_address(uint8_t reg_number, Channel channel = 0) {
+inline static uint8_t component_address(uint8_t reg_number, Channel channel = 0) {
   return (reg_number << 3 | channel << 1);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// The SC16IS75XComponent methods
+// The SC16IS75X_SPI_Component methods
 ///////////////////////////////////////////////////////////////////////////////
-i2c::ErrorCode SC16IS75XComponent::write_sc16is75x_register_(uint8_t reg, Channel ch, const uint8_t *buf, size_t len) {
-  auto rba = reg_bus_address(reg, ch);
-  auto error = this->write_register(rba, buf, len);
-  if (error == i2c::ERROR_OK) {
-    this->status_clear_warning();
-    ESP_LOGVV(TAG, "write_sc16is75x_register_ [%s, %d] => %02X, b=%02X, len=%d : I2C code %d", write_reg_to_str[reg],
-              ch, rba, &buf, len, error);
-  } else {  // error
-    this->status_set_warning();
-    ESP_LOGE(TAG, "write_sc16is75x_register_ [%s, %d] => %02X, b=%02X, len=%d : I2C code %d", write_reg_to_str[reg], ch,
-             rba, &buf, len, error);
-  }
-  return error;
+void SC16IS75X_SPI_Component::write_sc16is75x_register_(uint8_t reg, Channel ch, const uint8_t *data, size_t length) {
+  auto ca = component_address(reg, ch) | 0x80;  // TODO check
+  this->enable();
+  this->write_byte(ca);
+  this->write_array(data, length);
+  this->disable();
+  ESP_LOGVV(TAG, "write_sc16is75x_register_ [%s, %d] => %02X, b=%02X, len=%d", write_reg_to_str[reg], ch, ca, *data,
+            length);
 }
 
-i2c::ErrorCode SC16IS75XComponent::read_sc16is75x_register_(uint8_t reg, Channel ch, uint8_t *buf, size_t len) {
-  auto rba = reg_bus_address(reg, ch);
-  auto error = this->read_register(rba, buf, len);
-  if ((error == i2c::ERROR_OK)) {
-    this->status_clear_warning();
-    ESP_LOGVV(TAG, "read_sc16is75x_register_ [%s, %X] => %02X, b=%02X, len=%d : I2C code %d", read_reg_to_str[reg], ch,
-              rba, &buf, len, error);
-  } else {  // error
-    this->status_set_warning();
-    ESP_LOGE(TAG, "read_sc16is75x_register_ [%s, %X] => %02X, b=%02X, len=%d : I2C code %d", read_reg_to_str[reg], ch,
-             rba, &buf, len, error);
-  }
-  return error;
+void SC16IS75X_SPI_Component::read_sc16is75x_register_(uint8_t reg, Channel ch, uint8_t *data, size_t length) {
+  //   const uint8_t value(this->read_byte());  // TODO Idea
+  auto ca = component_address(reg, ch);
+  this->enable();
+  this->write_byte(ca);
+  this->read_array(data, length);
+  this->disable();
+  ESP_LOGVV(TAG, "read_sc16is75x_register_ [%s, %X] => %02X, b=%02X, len=%d : I2C code %d", read_reg_to_str[reg], ch,
+            ca, data, length);
 }
 
-bool SC16IS75XComponent::read_pin_val_(uint8_t pin) {
+// uint8_t MAX31865Sensor::read_register_(uint8_t reg) {
+//   this->enable();
+//   this->write_byte(reg);
+//   const uint8_t value(this->read_byte());
+//   this->disable();
+//   ESP_LOGVV(TAG, "read_register_ 0x%02X: 0x%02X", reg, value);
+//   return value;
+// }
+
+bool SC16IS75X_SPI_Component::read_pin_val_(uint8_t pin) {
   this->read_sc16is75x_register_(SC16IS75X_REG_IOP, 0, &this->input_state_);
   ESP_LOGVV(TAG, "reading input pin %d in_state %s", pin, I2CS(input_state_));
   return this->input_state_ & (1 << pin);
 }
 
-void SC16IS75XComponent::write_pin_val_(uint8_t pin, bool value) {
+void SC16IS75X_SPI_Component::write_pin_val_(uint8_t pin, bool value) {
   value ? this->output_state_ |= (1 << pin) : this->output_state_ &= ~(1 << pin);
   ESP_LOGV(TAG, "writing output pin %d out_state %s", pin, I2CS(this->output_state_));
   this->write_sc16is75x_register_(SC16IS75X_REG_IOP, 0, &this->output_state_);
 }
 
-void SC16IS75XComponent::set_pin_direction_(uint8_t pin, gpio::Flags flags) {
+void SC16IS75X_SPI_Component::set_pin_direction_(uint8_t pin, gpio::Flags flags) {
   if (flags == gpio::FLAG_INPUT)
     this->pin_config_ &= ~(1 << pin);  // clear bit (input mode)
   else if (flags == gpio::FLAG_OUTPUT)
@@ -102,10 +102,9 @@ void SC16IS75XComponent::set_pin_direction_(uint8_t pin, gpio::Flags flags) {
 //
 // overloaded methods from Component
 //
-void SC16IS75XComponent::setup() {
+void SC16IS75X_SPI_Component::setup() {
   const char *model_name = (this->model_ == SC16IS750_MODEL) ? "SC16IS750" : "SC16IS752";
-  ESP_LOGCONFIG(TAG, "Setting up SC16IS75X:%s i2c_addr @%02X with %d UARTs...", this->get_name(), this->address_,
-                this->children_.size());
+  ESP_LOGCONFIG(TAG, "Setting up SC16IS75X:%s with %d UARTs...", this->get_name(), this->children_.size());
 
   // // we read anything just to test communication
   // if (read_sc16is75x_register_(0, 0, &data_, 1) != i2c::ERROR_OK) {
@@ -118,16 +117,16 @@ void SC16IS75XComponent::setup() {
     child->setup_channel();
 }
 
-void SC16IS75XComponent::dump_config() {
+void SC16IS75X_SPI_Component::dump_config() {
   const char *model_name = (this->model_ == SC16IS750_MODEL) ? "SC16IS750" : "SC16IS752";
   ESP_LOGCONFIG(TAG, "SC16IS75X:%s with %d UARTs...", this->get_name(), this->children_.size());
   ESP_LOGCONFIG(TAG, "  model %s", model_name);
   ESP_LOGCONFIG(TAG, "  crystal %d", this->crystal_);
 
-  LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with %s failed!", model_name);
-  }
+  // LOG_I2C_DEVICE(this);  // TODO equivalent
+  // if (this->is_failed()) {
+  //   ESP_LOGE(TAG, "Communication with %s failed!", model_name);
+  // }
 
   for (auto child : this->children_)
     child->dump_channel();
@@ -234,11 +233,13 @@ void SC16IS75XChannel::set_baudrate_() {
 }
 
 bool SC16IS75XChannel::write_data_(const uint8_t *buffer, size_t len) {
-  return this->parent_->write_sc16is75x_register_(SC16IS75X_REG_THR, this->channel_, buffer, len);
+  this->parent_->write_sc16is75x_register_(SC16IS75X_REG_THR, this->channel_, buffer, len);
+  return true;
 }
 
 bool SC16IS75XChannel::read_data_(uint8_t *buffer, size_t len) {
-  return this->parent_->read_sc16is75x_register_(SC16IS75X_REG_RHR, this->channel_, buffer, len);
+  this->parent_->read_sc16is75x_register_(SC16IS75X_REG_RHR, this->channel_, buffer, len);
+  return true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -275,7 +276,7 @@ std::string SC16IS75XGPIOPin::dump_summary() const {
 #define TEST_COMPONENT
 #ifdef TEST_COMPONENT
 
-void SC16IS75XComponent::test_gpio_() {
+void SC16IS75X_SPI_Component::test_gpio_() {
   static bool init{false};
   if (!init) {
     init = true;
@@ -298,7 +299,7 @@ void SC16IS75XComponent::test_gpio_() {
   ESP_LOGI(TAG, "output pins: %s", I2CS(this->output_state_));
 }
 
-void SC16IS75XComponent::loop() {
+void SC16IS75X_SPI_Component::loop() {
   if (!this->initialized_)
     return;
   for (auto child : this->children_)
@@ -327,5 +328,5 @@ void SC16IS75XComponent::loop() {
 }
 #endif
 
-}  // namespace sc16is75x
+}  // namespace sc16is75x_spi
 }  // namespace esphome
