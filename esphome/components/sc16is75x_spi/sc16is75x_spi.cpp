@@ -1,6 +1,11 @@
-/// @file sc16s75x.cpp
+/// @file sc16is75x_spi.cpp
 /// @author @DrCoolzic
 /// @brief sc16is75x_spi implementation
+
+/*! @mainpage SC16IS75X documentation
+Gives some information about the details of the implementation of
+the SC16IS75X related classes.
+*/
 
 #include "sc16is75x_spi.h"
 
@@ -30,6 +35,15 @@ const char *parity2string(uart::UARTParityOptions parity) {
 inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
 #define I2CS(val) (i2s(val).c_str())
 
+/// @brief measure the time elapsed between two calls
+/// @param last_time time od the previous call
+/// @return the elapsed time in microseconds
+uint32_t elapsed(uint32_t &last_time) {
+  uint32_t e = micros() - last_time;
+  last_time = micros();
+  return e;
+};
+
 // for more meaningful debug messages ...
 static const char *write_reg_to_str[] = {"THR",   "IER",   "FCR", "LCR", "MCR", "LSR", "TCR", "SPR",
                                          "_INV_", "_INV_", "IOD", "IO",  "IOI", "IOC", "EFR"};
@@ -45,25 +59,25 @@ inline static uint8_t component_address(uint8_t reg_number, Channel channel = 0)
 ///////////////////////////////////////////////////////////////////////////////
 // The SC16IS75X_SPI_Component methods
 ///////////////////////////////////////////////////////////////////////////////
-void SC16IS75X_SPI_Component::write_sc16is75x_register_(uint8_t reg, Channel ch, const uint8_t *data, size_t length) {
-  auto ca = component_address(reg, ch) | 0x80;  // TODO check
+void SC16IS75X_SPI_Component::write_sc16is75x_register_(uint8_t reg, Channel channel, const uint8_t *data,
+                                                        size_t length) {
+  auto ca = component_address(reg, channel) | 0x80;
   this->enable();
   this->write_byte(ca);
   this->write_array(data, length);
   this->disable();
-  ESP_LOGVV(TAG, "write_sc16is75x_register_ [%s, %d] => %02X, b=%02X, len=%d", write_reg_to_str[reg], ch, ca, *data,
-            length);
+  ESP_LOGVV(TAG, "write_sc16is75x_register_ [%s, %d] => %02X, b=%02X, length=%d", write_reg_to_str[reg], channel, ca,
+            *data, length);
 }
 
-void SC16IS75X_SPI_Component::read_sc16is75x_register_(uint8_t reg, Channel ch, uint8_t *data, size_t length) {
-  //   const uint8_t value(this->read_byte());  // TODO Idea
-  auto ca = component_address(reg, ch);
+void SC16IS75X_SPI_Component::read_sc16is75x_register_(uint8_t reg, Channel channel, uint8_t *data, size_t length) {
+  auto ca = component_address(reg, channel);
   this->enable();
   this->write_byte(ca);
   this->read_array(data, length);
   this->disable();
-  ESP_LOGVV(TAG, "read_sc16is75x_register_ [%s, %X] => %02X, b=%02X, len=%d : I2C code %d", read_reg_to_str[reg], ch,
-            ca, data, length);
+  ESP_LOGVV(TAG, "read_sc16is75x_register_ [%s, %X] => %02X, b=%02X, length=%d : I2C code %d", read_reg_to_str[reg],
+            channel, ca, data, length);
 }
 
 // uint8_t MAX31865Sensor::read_register_(uint8_t reg) {
@@ -105,14 +119,7 @@ void SC16IS75X_SPI_Component::set_pin_direction_(uint8_t pin, gpio::Flags flags)
 void SC16IS75X_SPI_Component::setup() {
   const char *model_name = (this->model_ == SC16IS750_MODEL) ? "SC16IS750" : "SC16IS752";
   ESP_LOGCONFIG(TAG, "Setting up SC16IS75X:%s with %d UARTs...", this->get_name(), this->children_.size());
-
-  // // we read anything just to test communication
-  // if (read_sc16is75x_register_(0, 0, &data_, 1) != i2c::ERROR_OK) {
-  //   ESP_LOGCONFIG(TAG, "%s failed", model_name);
-  //   this->mark_failed();
-  // }
-
-  // we can now setup our children
+  // setup our children
   for (auto child : this->children_)
     child->setup_channel();
 }
@@ -120,13 +127,9 @@ void SC16IS75X_SPI_Component::setup() {
 void SC16IS75X_SPI_Component::dump_config() {
   const char *model_name = (this->model_ == SC16IS750_MODEL) ? "SC16IS750" : "SC16IS752";
   ESP_LOGCONFIG(TAG, "SC16IS75X:%s with %d UARTs...", this->get_name(), this->children_.size());
+  LOG_PIN("  CS Pin: ", this->cs_);
   ESP_LOGCONFIG(TAG, "  model %s", model_name);
   ESP_LOGCONFIG(TAG, "  crystal %d", this->crystal_);
-
-  // LOG_I2C_DEVICE(this);  // TODO equivalent
-  // if (this->is_failed()) {
-  //   ESP_LOGE(TAG, "Communication with %s failed!", model_name);
-  // }
 
   for (auto child : this->children_)
     child->dump_channel();
@@ -137,7 +140,7 @@ void SC16IS75X_SPI_Component::dump_config() {
 // The SC16IS75XChannel methods
 ///////////////////////////////////////////////////////////////////////////////
 void SC16IS75XChannel::setup_channel() {
-  ESP_LOGCONFIG(TAG, "  Setting up UART %s:%d...", this->parent_->get_name(), this->channel_);
+  ESP_LOGCONFIG(TAG, "  Setting up UART %s:%s...", this->parent_->get_name(), this->get_channel_name());
 
   // reset and enable the fifo
   uint8_t fcr = 0x7;
@@ -147,7 +150,7 @@ void SC16IS75XChannel::setup_channel() {
 }
 
 void SC16IS75XChannel::dump_channel() {
-  ESP_LOGCONFIG(TAG, "  UART bus %s:%d...", this->parent_->get_name(), this->channel_);
+  ESP_LOGCONFIG(TAG, "  UART bus %s:%s...", this->parent_->get_name(), this->get_channel_name());
   ESP_LOGCONFIG(TAG, "    baudrate %d Bd", this->baud_rate_);
   ESP_LOGCONFIG(TAG, "    data_bits %d", this->data_bits_);
   ESP_LOGCONFIG(TAG, "    stop_bits %d", this->stop_bits_);
@@ -196,7 +199,7 @@ void SC16IS75XChannel::set_baudrate_() {
   // crystal on SC16IS750 is 14.7456MHz => max speed 14745600/16 = 921,600bps.
   // crystal on SC16IS752 is 3.072MHz => max speed 14745600/16 = 192,000bps
   uint8_t pre_scaler = 1;  // we never use it... but we could if crystal is very high ...
-  // (read_uart_register_(SC16IS75X_REG_MCR) & 0x80) == 0 ? pre_scaler = 1 : pre_scaler = 4;
+  // (read_register_(SC16IS75X_REG_MCR) & 0x80) == 0 ? pre_scaler = 1 : pre_scaler = 4;
 
   uint32_t upper_part = this->parent_->crystal_ / pre_scaler;
   uint32_t lower_part = this->baud_rate_ * 16;
@@ -232,14 +235,12 @@ void SC16IS75XChannel::set_baudrate_() {
              actual_baudrate);
 }
 
-bool SC16IS75XChannel::write_data_(const uint8_t *buffer, size_t len) {
-  this->parent_->write_sc16is75x_register_(SC16IS75X_REG_THR, this->channel_, buffer, len);
-  return true;
+void SC16IS75XChannel::write_data_(const uint8_t *buffer, size_t length) {
+  this->parent_->write_sc16is75x_register_(SC16IS75X_REG_THR, this->channel_, buffer, length);
 }
 
-bool SC16IS75XChannel::read_data_(uint8_t *buffer, size_t len) {
-  this->parent_->read_sc16is75x_register_(SC16IS75X_REG_RHR, this->channel_, buffer, len);
-  return true;
+void SC16IS75XChannel::read_data_(uint8_t *buffer, size_t length) {
+  this->parent_->read_sc16is75x_register_(SC16IS75X_REG_RHR, this->channel_, buffer, length);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -302,27 +303,43 @@ void SC16IS75X_SPI_Component::test_gpio_() {
 void SC16IS75X_SPI_Component::loop() {
   if (!this->initialized_)
     return;
-  for (auto child : this->children_)
-    child->rx_fifo_to_buffer_();
 
-  //
-  // Only use if component is in test mode
-  //
-  if (!this->test_mode_)
-    return;
+  static uint32_t loop_time = 0;
+  static uint32_t loop_count = 0;
+  uint32_t time = 0;
 
-  char preamble[64];
-  static int32_t loop_time = 0;
-  ESP_LOGI(TAG, "%d ms since last loop call ...", millis() - loop_time);
+  if (test_mode_) {
+    ESP_LOGI(TAG, "Component loop %d for %s : %d ms since last call ...", loop_count++, this->get_name(),
+             millis() - loop_time);
+  }
   loop_time = millis();
 
-  for (auto i = 0; i < children_.size(); i++) {
-    snprintf(preamble, sizeof(preamble), "SC16IS75X_%s_Ch_%d", this->get_name(), i);
-    children_[i]->uart_send_test(preamble);
-    children_[i]->uart_receive_test(preamble, this->test_mode_ > 1);
+  // here we transfer bytes from fifo to ring buffers
+  elapsed(time);  // set time to now
+  for (auto *child : this->children_) {
+    // we look if some characters has been received in the fifo
+    child->rx_fifo_to_buffer_();
+  }
+  if (test_mode_)
+    ESP_LOGI(TAG, "transfer rx fifo to buffer - execution time %d µs...", elapsed(time));
+
+  if (test_mode_ == 1) {
+    char preamble[64];
+    elapsed(time);  // set time to now
+    for (auto i = 0; i < children_.size(); i++) {
+      snprintf(preamble, sizeof(preamble), "SC16IS75X_%s_Ch_%d", this->get_name(), i);
+      children_[i]->uart_send_test(preamble);
+      ESP_LOGI(TAG, "uart_send_test - execution time %d µs...", elapsed(time));
+      children_[i]->uart_receive_test(preamble, true);
+      ESP_LOGI(TAG, "uart_receive_test - execution time %d µs...", elapsed(time));
+    }
   }
 
-  // test_gpio_();
+  if (test_mode_ == 2) {
+    elapsed(time);  // set time to now
+    test_gpio_();
+    ESP_LOGI(TAG, "test gpio - execution time %d µs...", elapsed(time));
+  }
 
   ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
 }

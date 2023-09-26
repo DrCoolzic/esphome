@@ -150,32 +150,32 @@ class SC16IS75XChannel : public uart_base::UARTBase {
 
  protected:
   friend class SC16IS75X_SPI_Component;
-  /// @brief returns the number of bytes available in the receiver fifo
-  /// @return the number of bytes we can read
-  size_t rx_in_fifo_() override { return this->read_uart_register_(SC16IS75X_REG_RXF); }
+  /// @brief returns the number of bytes currently in the receiver fifo
+  /// @return the number of bytes
+  size_t rx_in_fifo_() override { return this->read_register_(SC16IS75X_REG_RXF); }
 
-  /// @brief returns the number of bytes available in the transmitter fifo
-  /// @return the number of bytes we can write
-  virtual size_t tx_in_fifo_() override { return this->fifo_size_() - this->read_uart_register_(SC16IS75X_REG_TXF); }
+  /// @brief returns the number of bytes currently in the transmitter fifo
+  /// @return the number of bytes
+  size_t tx_in_fifo_() override { return this->read_register_(SC16IS75X_REG_TXF); }
 
-  inline bool tx_fifo_is_not_empty_() override { return !this->read_uart_register_(SC16IS75X_REG_LSR) & 0x40; }
+  /// @brief returns true if the transmit buffer is empty
+  /// @return returns true if the transmit buffer is empty
+  bool tx_fifo_is_not_empty_() override { return !this->read_register_(SC16IS75X_REG_LSR) & 0x40; }
 
   const size_t fifo_size_() override { return FIFO_SIZE; }
 
-  /// @brief Write data to the transmitter fifo from a buffer
-  /// @param buffer the buffer
-  /// @param len the number of bytes we want to writefor
-  /// @return true if succeed false otherwise
-  bool write_data_(const uint8_t *buffer, size_t len) override;
+  /// @brief Write data into the transmitter fifo
+  /// @param buffer the input buffer
+  /// @param length the number of bytes we want to transmit
+  void write_data_(const uint8_t *buffer, size_t length) override;
 
-  /// @brief Read data from the receiver fifo to a buffer
-  /// @param buffer the buffer
-  /// @param len the number of bytes we want to read
-  /// @return true if succeed false otherwise
-  bool read_data_(uint8_t *buffer, size_t len) override;
+  /// @brief Read data from the receiver fifo
+  /// @param buffer the output buffer
+  /// @param length the number of bytes we want to read
+  void read_data_(uint8_t *buffer, size_t length) override;
 
   // helpers
-  uint8_t read_uart_register_(int reg_address) {
+  inline uint8_t read_register_(int reg_address) {
     this->parent_->read_sc16is75x_register_(reg_address, this->channel_, &this->data_);
     return this->data_;
   }

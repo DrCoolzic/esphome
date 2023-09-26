@@ -2,91 +2,17 @@
 /// @author @DrCoolzic
 /// @brief external uart implementation
 
+/*! @mainpage UARTBase documentation
+Gives some information about the details of the implementation of
+the UARTBase class.
+*/
+
 #include "uart_base.h"
 
 namespace esphome {
 namespace uart_base {
 
 static const char *const TAG = "uart_base";
-
-/*! @page page_gen_uart_bus_ GenUARTChannel documentation
-This page gives some information about the details of the implementation of
-the GenUARTChannel class for ESPHome.
-
-  @section gen_uart_bus_ GenUARTChannel (UART) class
-Unfortunately I have not found any documentation about the uart::UARTDevice and
-uart::UARTComponent classes of @ref ESPHome.
-@n However it seems that both of them are based on equivalent in Arduino library.\n
-
-Most of the interfaces provided by the Arduino Serial library are **poorly
-defined** and it seems that the API has even \b changed over time!\n
-The esphome::uart::UARTDevice class directly relates to the **Serial Class**
-in Arduino and derives from **Stream class**.\n
-For compatibility reason (?) many helper methods are made available in ESPHome to
-read and write. Unfortunately in many cases these helpers are missing the critical
-status information and therefore even more unsafe to use...\n
-
- @subsection ra_ss_ bool read_array(uint8_t *buffer, size_t len);
-
-This method receives 'len' characters from the uart and transfer them into
-a buffer. It returns
-- true if requested number of characters have been transferred,
-- false if we have a timeout condition\n
-
-Note: If the characters requested are available in the fifo we read them otherwise
-we wait up to 100 ms to get them. To avoid problems it is highly recommended to call
-read() with the length set to the number of bytes returned by available()
-
-Typical usage:
-@code
-  // ...
-  auto len = available();
-  uint8_t buffer[64];
-  if (len > 0) {
-    auto status = read_array(&buffer, len)
-  }
-  // test status ...
-@endcode
-
- @subsection pb_ss_ bool peek_byte(uint8_t *buffer);
-
-This method returns the next byte from incoming serial line without
-removing it from the internal fifo. It returns: true if a character
-is available and has been read, false otherwise.\n
-
- @subsection wa_ss_ void write_array(uint8_t *buffer, size_t len);
-
-This method sends 'len' characters from the buffer to the serial line.
-Unfortunately (unlike the Arduino equivalent) this method
-does not return any value and therefore it is not possible
-to know if the bytes has been transmitted correctly.
-Another problem is that it is not possible to know how many bytes we
-can safely send as there is no tx_available() method provided!
-To avoid overrun when using write use flush() to wait until fifo is
-empty.
-
-Typical usage could be:
-@code
-  // ...
-  uint8_t buffer[64];
-  // ...
-  flush();
-  write_array(&buffer, len);
-  // ...
-@endcode
-
- @subsection fl_ss_ bool flush();
-
-If we refer to Serial.flush() in Arduino it says: ** Waits for the transmission
-of outgoing serial data to complete. (Prior to Arduino 1.0, this instead removed
-any buffered incoming serial data.). **
-
-The method waits until all characters inside the fifo have been sent.
-Timeout  after 100 ms
-
-Typical usage see @ref wa_ss_
-
-*/
 
 ///////////////////////////////////////////////////////////////////////////////
 // The UARTBase methods

@@ -18,7 +18,7 @@ namespace uart_base {
 /// There is a problem if you try to the received bytes one by one.
 /// If the registers are located on the chip everything is fine but with a
 /// device like the wk2132 these registers are remote and therefore accessing
-/// them requires several transactions on the I²C bus which is relatively slow.
+/// them requires several transactions on the bus which is relatively slow.
 /// One solution would be for the client to check the number of bytes available
 /// and to read them all using the read_array() method. Unfortunately
 /// most client I have reviewed are reading one character at a time in a
@@ -27,12 +27,13 @@ namespace uart_base {
 /// store received bytes locally in a buffer as soon as they arrive. With
 /// this solution the bytes are stored locally and therefore accessible
 /// very quickly when requested one by one.
-/// @image html read_cycles.png
 ///////////////////////////////////////////////////////////////////////////////
 class RingBuffer {
  public:
   /// @brief Ctor : initialize variables with the given size
   /// @param size size of the desired RingBuffer
+  ///
+  /// Note this disable the default ctor as it should *not* be used
   RingBuffer(const size_t size) : size_(size) { rb_.resize(size); }
 
   /// @brief pushes an item at the tail of the fifo
@@ -93,7 +94,7 @@ class RingBuffer {
   const size_t size_;        // size of the ring buffer
   int head_{0};              // points to the next element to write
   int tail_{0};              // points to the next element to read
-  size_t count_{0};          // count number of element currently in the buffer
+  size_t count_{0};          // number of element currently in the buffer
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -117,6 +118,10 @@ class RingBuffer {
 ///////////////////////////////////////////////////////////////////////////////
 class UARTBase : public uart::UARTComponent {
  public:
+  /// @brief Ctor : initialize variables with the given size
+  /// @param size size of the desired RingBuffer
+  ///
+  /// Note this disable the default ctor as it should *not* be used
   UARTBase(const size_t size) : receive_buffer_(RingBuffer(size)) {}
 
   //
@@ -125,9 +130,9 @@ class UARTBase : public uart::UARTComponent {
 
   /// @brief Writes a specified number of bytes toward a serial port
   /// @param buffer pointer to the buffer
-  /// @param len number of bytes to write
+  /// @param length number of bytes to write
   ///
-  /// This method sends 'len' characters from the buffer to the serial line.
+  /// This method sends 'length' characters from the buffer to the serial line.
   /// Unfortunately (unlike the Arduino equivalent) this method
   /// does not return any flag and therefore it is not possible to know
   /// if any/all bytes have been transmitted correctly. Another problem
@@ -141,28 +146,28 @@ class UARTBase : public uart::UARTComponent {
   ///   // ...
   ///   uint8_t buffer[128];
   ///   // ...
-  ///   write_array(&buffer, len);
+  ///   write_array(&buffer, length);
   ///   flush();
   ///   // ...
   /// @endcode
-  void write_array(const uint8_t *buffer, size_t len) override;
+  void write_array(const uint8_t *buffer, size_t length) override;
 
   /// @brief Reads a specified number of bytes from a serial port
   /// @param buffer buffer to store the bytes
-  /// @param len number of bytes to read
+  /// @param length number of bytes to read
   /// @return true if succeed, false otherwise
   ///
   /// Typical usage:
   /// @code
   ///   // ...
-  ///   auto len = available();
+  ///   auto length = available();
   ///   uint8_t buffer[128];
-  ///   if (len > 0) {
-  ///     auto status = read_array(&buffer, len)
+  ///   if (length > 0) {
+  ///     auto status = read_array(&buffer, length)
   ///     // test status ...
   ///   }
   /// @endcode
-  bool read_array(uint8_t *buffer, size_t len) override;
+  bool read_array(uint8_t *buffer, size_t length) override;
 
   /// @brief Reads first byte in FIFO without removing it
   /// @param buffer pointer to the byte
@@ -210,21 +215,20 @@ class UARTBase : public uart::UARTComponent {
   /// @return true if not empty
   virtual bool tx_fifo_is_not_empty_() = 0;
 
-  /// @brief Reads data from the receive fifo to a buffer
-  /// @param buffer the buffer
-  /// @param len the number of bytes we want to read
-  /// @return true if succeed false otherwise
-  virtual bool read_data_(uint8_t *buffer, size_t len) = 0;
+  /// @brief Reads data from the receive fifo
+  /// @param buffer the input buffer
+  /// @param length the number of bytes we want to read
+  virtual void read_data_(uint8_t *buffer, size_t length) = 0;
 
-  /// @brief Writes data from a buffer to the transmit fifo
-  /// @param buffer the buffer
-  /// @param len the number of bytes we want to write
-  /// @return true if succeed false otherwise
-  virtual bool write_data_(const uint8_t *buffer, size_t len) = 0;
+  /// @brief Writes data to the transmit fifo
+  /// @param buffer the output buffer
+  /// @param length the number of bytes we want to write
+  virtual void write_data_(const uint8_t *buffer, size_t length) = 0;
 
   /// @brief return the size of the fifo
   virtual const size_t fifo_size_() = 0;
 
+  // for test
   void uart_send_test(char *preamble);
   void uart_receive_test(char *preamnle, bool print_buf = true);
 

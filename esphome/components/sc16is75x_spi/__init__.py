@@ -18,18 +18,18 @@ from esphome.const import (
 CODEOWNERS = ["@DrCoolZic"]
 DEPENDENCIES = ["spi"]
 
-sc16is75x_ns = cg.esphome_ns.namespace("sc16is75x")
-SC16IS75XComponent = sc16is75x_ns.class_(
-    "SC16IS75XComponent", cg.Component, spi.SPIDevice
+sc16is75x_spi_ns = cg.esphome_ns.namespace("sc16is75x_spi")
+SC16IS75X_SPI_Component = sc16is75x_spi_ns.class_(
+    "SC16IS75X_SPI_Component", cg.Component, spi.SPIDevice
 )
-SC16IS75XChannel = sc16is75x_ns.class_(
+SC16IS75XChannel = sc16is75x_spi_ns.class_(
     "SC16IS75XChannel", cg.Component, uart.UARTComponent
 )
-SC16IS75XGPIOPin = sc16is75x_ns.class_(
-    "SC16IS75XGPIOPin", cg.GPIOPin, cg.Parented.template(SC16IS75XComponent)
+SC16IS75XGPIOPin = sc16is75x_spi_ns.class_(
+    "SC16IS75XGPIOPin", cg.GPIOPin, cg.Parented.template(SC16IS75X_SPI_Component)
 )
 
-CONF_SC16IS75X = "sc16is75x"
+CONF_SC16IS75X = "sc16is75x_spi"
 MULTI_CONF = True
 CONF_STOP_BITS = "stop_bits"
 CONF_DATA_BITS = "data_bits"
@@ -39,7 +39,7 @@ CONF_CRYSTAL = "crystal"
 CONF_UART = "uart"
 CONF_TEST_MODE = "test_mode"
 
-SC16IS75XComponentModel = sc16is75x_ns.enum("SC16IS75XComponentModel")
+SC16IS75XComponentModel = sc16is75x_spi_ns.enum("SC16IS75XComponentModel")
 SC16IS75X_MODELS = {
     "SC16IS750": SC16IS75XComponentModel.SC16IS750_MODEL,
     "SC16IS752": SC16IS75XComponentModel.SC16IS752_MODEL,
@@ -72,7 +72,7 @@ def post_validate(value):
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(SC16IS75XComponent),
+            cv.GenerateID(): cv.declare_id(SC16IS75X_SPI_Component),
             cv.Optional(CONF_MODEL, default="SC16IS752"): cv.enum(
                 SC16IS75X_MODELS, upper=True
             ),
@@ -128,7 +128,7 @@ def validate_mode(value):
 SC16IS75X_PIN_SCHEMA = cv.All(
     {
         cv.GenerateID(): cv.declare_id(SC16IS75XGPIOPin),
-        cv.Required(CONF_SC16IS75X): cv.use_id(SC16IS75XComponent),
+        cv.Required(CONF_SC16IS75X): cv.use_id(SC16IS75X_SPI_Component),
         cv.Required(CONF_NUMBER): cv.int_range(min=0, max=8),
         cv.Optional(CONF_MODE, default={}): cv.All(
             {
@@ -142,7 +142,7 @@ SC16IS75X_PIN_SCHEMA = cv.All(
 )
 
 
-@pins.PIN_SCHEMA_REGISTRY.register("sc16is75x", SC16IS75X_PIN_SCHEMA)
+@pins.PIN_SCHEMA_REGISTRY.register("sc16is75x_spi", SC16IS75X_PIN_SCHEMA)
 async def sc16is75x_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     parent = await cg.get_variable(config[CONF_SC16IS75X])
