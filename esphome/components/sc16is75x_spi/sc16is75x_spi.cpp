@@ -76,8 +76,8 @@ void SC16IS75X_SPI_Component::read_sc16is75x_register_(uint8_t reg, Channel chan
   this->write_byte(ca);
   this->read_array(data, length);
   this->disable();
-  ESP_LOGVV(TAG, "read_sc16is75x_register_ [%s, %X] => %02X, b=%02X, length=%d : I2C code %d", read_reg_to_str[reg],
-            channel, ca, data, length);
+  ESP_LOGVV(TAG, "read_sc16is75x_register_ [%s, %X] => %02X, b=%02X, length=%d", read_reg_to_str[reg], channel, ca,
+            *data, length);
 }
 
 // uint8_t MAX31865Sensor::read_register_(uint8_t reg) {
