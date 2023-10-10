@@ -10,7 +10,7 @@ the UARTBase class.
 #include "uart_base.h"
 
 namespace esphome {
-namespace uart_base {
+namespace sc16is75x_spi {
 
 static const char *const TAG = "uart_base";
 
@@ -46,7 +46,7 @@ bool UARTBase::read_array(uint8_t *buffer, size_t len) {
   auto available = this->receive_buffer_.count();
 
   // If we do not have any bytes in buffer we want to check if
-  // there are bytes in the fifo,in which case we read them
+  // there are bytes in the fifo, in which case we read them
   // immediately so we do not delay until the next loop transfer.
   if (!available)
     available = this->rx_fifo_to_buffer_();
@@ -63,8 +63,6 @@ bool UARTBase::read_array(uint8_t *buffer, size_t len) {
   return status;
 }
 
-inline bool UARTBase::peek_byte(uint8_t *buffer) { return this->receive_buffer_.peek(*buffer); }
-
 int UARTBase::available() {
   auto available = this->receive_buffer_.count();
 
@@ -78,10 +76,9 @@ int UARTBase::available() {
 }
 
 void UARTBase::flush() {
-  // here we just record the request but we do not wait at this time.
-  // Tje next write_array() call will first check that everything
-  // is gone otherwise it will wait. This gives time for the bytes
-  // to go
+  // here we just record the fact thar flush was requested but we do not wait
+  // at this time. In the next write_array() call we will check that everything
+  // is gone otherwise we will wait. This gives time for the bytes to go.
   this->flush_requested_ = true;
 }
 
@@ -106,7 +103,6 @@ size_t UARTBase::rx_fifo_to_buffer_() {
 ///////////////////////////////////////////////////////////////////////////////
 /// TEST FUNCTIONS BELOW
 ///////////////////////////////////////////////////////////////////////////////
-#define TEST_COMPONENT
 #ifdef TEST_COMPONENT
 
 class Increment {  // A increment "Functor" (A class object that acts like a method with state!)
@@ -135,39 +131,43 @@ void print_buffer(std::vector<uint8_t> buffer) {
 }
 
 /// @brief test the write_array method
-void UARTBase::uart_send_test(char *preamble) {
-  auto start_exec = millis();
+void UARTBase::uart_send_test(char *message) {
+  auto start_exec = micros();
   uint8_t to_send = this->fifo_size_() - tx_in_fifo_();
-  uint8_t to_flush = tx_in_fifo_();  // byte in buffer before execution
-  this->flush();                     // we wait until they are gone
-  uint8_t remains = tx_in_fifo_();   // remaining bytes if not null => flush timeout
+  this->flush();  // we wait until they are gone
 
   if (to_send > 0) {
     std::vector<uint8_t> output_buffer(to_send);
     generate(output_buffer.begin(), output_buffer.end(), Increment());  // fill with incrementing number
-    output_buffer[0] = to_send;                     // we send as the first byte the length of the buffer
-    this->write_array(&output_buffer[0], to_send);  // we send the buffer
-    ESP_LOGI(TAG, "%s pre flushing %d, remains %d => sending %d bytes - exec time %d ms ...", preamble, to_flush,
-             remains, to_send, millis() - start_exec);
+    this->write_array(&output_buffer[0], to_send);                      // we send the buffer
+    //    ESP_LOGI(TAG, "%s => sending %d bytes - exec time %d ms ...", message, to_send, millis() - start_exec);
+    ESP_LOGI(TAG, "%s => sending %d bytes - exec time %d µs ...", message, to_send, micros() - start_exec);
   }
 }
 
 /// @brief test read_array method
-void UARTBase::uart_receive_test(char *preamble, bool print_buf) {
-  auto start_exec = millis();
+void UARTBase::uart_receive_test(char *message) {
+  auto start_exec = micros();
   bool status = true;
   uint8_t to_read = rx_in_fifo_();
+  if (to_read < this->fifo_size_())
+    ESP_LOGI(TAG, "%s => %d bytes received expected %d ...", message, to_read, this->fifo_size_());
 
   if (to_read > 0) {
     std::vector<uint8_t> buffer(to_read);
     status = read_array(&buffer[0], to_read);
-    if (print_buf)
-      print_buffer(buffer);
+    for (int i = 0; i < to_read; i++) {
+      if (buffer[i] != i) {
+        ESP_LOGE(TAG, "%s => invalid bytes received...");
+        print_buffer(buffer);
+        break;
+      }
+    }
   }
-  ESP_LOGI(TAG, "%s => %d bytes received status %s - exec time %d ms ...", preamble, to_read, status ? "OK" : "ERROR",
-           millis() - start_exec);
+  ESP_LOGI(TAG, "%s => %d bytes received status %s - exec time %d µs ...", message, to_read, status ? "OK" : "ERROR",
+           micros() - start_exec);
 }
 #endif
 
-}  // namespace uart_base
+}  // namespace sc16is75x_spi
 }  // namespace esphome

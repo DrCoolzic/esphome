@@ -110,8 +110,10 @@ class SC16IS75X_SPI_Component : public Component,
   /// Helper method to set the pin mode of a pin.
   void set_pin_direction_(uint8_t pin, gpio::Flags flags);
 
+#ifdef TEST_COMPONENT
   /// @brief for testing the GPIO pins
   void test_gpio_();
+#endif
 
   /// pin config mask: 1 means OUTPUT, 0 means INPUT
   uint8_t pin_config_{0x00};
@@ -127,6 +129,7 @@ class SC16IS75X_SPI_Component : public Component,
   int test_mode_;                               ///< test_mode value (0 no test)
   std::string name_;                            ///< store name of entity
   bool initialized_{false};                     ///< true when component initialized
+  uint8_t special_reg_{0};                      ///< 1 when accessing special register
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -135,7 +138,7 @@ class SC16IS75X_SPI_Component : public Component,
 /// This class derives from the @ref uart_base::UARTBase virtual class.
 /// we must therefore provide several methods for the virtual class
 ///////////////////////////////////////////////////////////////////////////////
-class SC16IS75XChannel : public uart_base::UARTBase {
+class SC16IS75XChannel : public sc16is75x_spi::UARTBase {
  public:
   SC16IS75XChannel() : UARTBase(FIFO_SIZE) {}
   void set_parent(SC16IS75X_SPI_Component *parent) {
@@ -145,6 +148,7 @@ class SC16IS75XChannel : public uart_base::UARTBase {
   void set_channel(Channel channel) { this->channel_ = channel; }
   void set_channel_name(std::string name) { this->name_ = std::move(name); }
   const char *get_channel_name() { return this->name_.c_str(); }
+
   void setup_channel();
   void dump_channel();
 
@@ -156,7 +160,7 @@ class SC16IS75XChannel : public uart_base::UARTBase {
 
   /// @brief returns the number of bytes currently in the transmitter fifo
   /// @return the number of bytes
-  size_t tx_in_fifo_() override { return this->read_register_(SC16IS75X_REG_TXF); }
+  size_t tx_in_fifo_() override { return this->fifo_size_() - this->read_register_(SC16IS75X_REG_TXF); }
 
   /// @brief returns true if the transmit buffer is empty
   /// @return returns true if the transmit buffer is empty
@@ -203,10 +207,10 @@ class SC16IS75XGPIOPin : public GPIOPin {
   //
 
   void setup() override;
+  std::string dump_summary() const override;
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;
-  std::string dump_summary() const override;
 
  protected:
   SC16IS75X_SPI_Component *parent_{nullptr};

@@ -5,8 +5,10 @@
 #pragma once
 #include "esphome/components/uart/uart.h"
 
+#define TEST_COMPONENT
+
 namespace esphome {
-namespace uart_base {
+namespace sc16is75x_spi {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief This is an helper class that provides a simple ring buffers
@@ -15,18 +17,18 @@ namespace uart_base {
 /// This ring buffer is used to buffer the exchanges between the receiver
 /// HW fifo and the client. Usually to read characters you first
 /// check if bytes were received and if so you read them.
-/// There is a problem if you try to the received bytes one by one.
+/// But there is a problem if you try to the received bytes one by one.
 /// If the registers are located on the chip everything is fine but with a
 /// device like the wk2132 these registers are remote and therefore accessing
-/// them requires several transactions on the bus which is relatively slow.
+/// them requires several transactions on the bus which might be relatively slow.
 /// One solution would be for the client to check the number of bytes available
 /// and to read them all using the read_array() method. Unfortunately
 /// most client I have reviewed are reading one character at a time in a
-/// while loop which is the most inefficient way of doing things.
+/// while loop which is the most inefficient way of doing things!
 /// Therefore the solution I have chosen to implement is to
 /// store received bytes locally in a buffer as soon as they arrive. With
 /// this solution the bytes are stored locally and therefore accessible
-/// very quickly when requested one by one.
+/// very quickly when requested on a one by one basis.
 ///////////////////////////////////////////////////////////////////////////////
 class RingBuffer {
  public:
@@ -176,7 +178,7 @@ class UARTBase : public uart::UARTComponent {
   /// This method returns the next byte from receiving buffer without
   /// removing it from the internal fifo. It returns true if a character
   /// is available and has been read, false otherwise.\n
-  bool peek_byte(uint8_t *buffer) override;
+  bool peek_byte(uint8_t *buffer) override { return this->receive_buffer_.peek(*buffer); }
 
   /// @brief Returns the number of bytes in the receive buffer
   /// @return the number of bytes available in the receiver fifo
@@ -196,7 +198,7 @@ class UARTBase : public uart::UARTComponent {
   /// @brief transfer the bytes from the HW fifo to the ring buffer
   /// @return the number of bytes transferred
   ///
-  /// This method should be called from the loop() in derived class
+  /// This method should be called from the loop() in the derived class
   size_t rx_fifo_to_buffer_();
 
   //
@@ -228,13 +230,15 @@ class UARTBase : public uart::UARTComponent {
   /// @brief return the size of the fifo
   virtual const size_t fifo_size_() = 0;
 
+#ifdef TEST_COMPONENT
   // for test
-  void uart_send_test(char *preamble);
-  void uart_receive_test(char *preamnle, bool print_buf = true);
+  void uart_send_test(char *message);
+  void uart_receive_test(char *message);
+#endif
 
   bool flush_requested_{false};  ///< flush was requested but not honored
   RingBuffer receive_buffer_;    ///< The receive buffer
 };
 
-}  // namespace uart_base
+}  // namespace sc16is75x_spi
 }  // namespace esphome

@@ -39,21 +39,24 @@ inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
 /// @param last_time time od the previous call
 /// @return the elapsed time in microseconds
 uint32_t elapsed(uint32_t &last_time) {
-  uint32_t e = micros() - last_time;
-  last_time = micros();
+  uint32_t e = millis() - last_time;
+  last_time = millis();
   return e;
 };
 
 // for more meaningful debug messages ...
-static const char *write_reg_to_str[] = {"THR",   "IER",   "FCR", "LCR", "MCR", "LSR", "TCR", "SPR",
-                                         "_INV_", "_INV_", "IOD", "IO",  "IOI", "IOC", "EFR"};
-static const char *read_reg_to_str[] = {"RHR", "IER", "IIR", "LCR", "MCR", "LSR", "MSR", "SPR",
-                                        "TXF", "RXF", "IOD", "IOP", "IOI", "IOC", "EFR"};
+static const char *write_reg_to_str[2][16] = {
+    "THR", "IER", "FCR", "LCR", "MCR", "LSR", "TCR", "SPR", "???", "???", "IOD", "IOS", "IOI", "IOC", "EFR", "???",
+    "DLL", "DHL", "EFR", "???", "XO1", "XO2", "XF1", "XF2", "???", "???", "???", "???", "???", "???", "???", "???"};
+static const char *read_reg_to_str[2][16] = {
+    "RHR", "IER", "IIR", "LCR", "MCR", "LSR", "MSR", "SPR", "TXF", "RXF", "IOD", "IOP", "IOI", "IOC", "EFR", "???",
+    "DLL", "DHL", "EFR", "???", "XO1", "XO2", "XF1", "XF2", "???", "???", "???", "???", "???", "???", "???", "???"};
 
-// the register address on the bus is build from the register value and the channel value.
-// note that for I/O related register the chanel value is not significant so we set to zero
-inline static uint8_t component_address(uint8_t reg_number, Channel channel = 0) {
-  return (reg_number << 3 | channel << 1);
+enum TransferType { Write, Read };
+// the address on the bus is build from the register value and the channel value combined with
+// the w/r bit. For I/O registers the chanel value is not significant.
+inline static uint8_t address_on_bus(uint8_t reg_number, Channel channel, TransferType transfer_type) {
+  return (transfer_type << 7 | reg_number << 3 | channel << 1);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -61,23 +64,23 @@ inline static uint8_t component_address(uint8_t reg_number, Channel channel = 0)
 ///////////////////////////////////////////////////////////////////////////////
 void SC16IS75X_SPI_Component::write_sc16is75x_register_(uint8_t reg, Channel channel, const uint8_t *data,
                                                         size_t length) {
-  auto ca = component_address(reg, channel) | 0x80;
+  auto ca = address_on_bus(reg, channel, Write);
   this->enable();
   this->write_byte(ca);
   this->write_array(data, length);
   this->disable();
-  ESP_LOGVV(TAG, "write_sc16is75x_register_ [%s, %d] => %02X, b=%02X, length=%d", write_reg_to_str[reg], channel, ca,
-            *data, length);
+  ESP_LOGVV(TAG, "write_sc16is75x_register_ [%s, %d] => %02X, b=%02X, length=%d",
+            write_reg_to_str[this->special_reg_][reg], channel, ca, *data, length);
 }
 
 void SC16IS75X_SPI_Component::read_sc16is75x_register_(uint8_t reg, Channel channel, uint8_t *data, size_t length) {
-  auto ca = component_address(reg, channel);
+  auto ca = address_on_bus(reg, channel, Read);
   this->enable();
   this->write_byte(ca);
   this->read_array(data, length);
   this->disable();
-  ESP_LOGVV(TAG, "read_sc16is75x_register_ [%s, %X] => %02X, b=%02X, length=%d", read_reg_to_str[reg], channel, ca,
-            *data, length);
+  ESP_LOGVV(TAG, "read_sc16is75x_register_ [%s, %X] => %02X, b=%02X, length=%d",
+            read_reg_to_str[this->special_reg_][reg], channel, ca, *data, length);
 }
 
 // uint8_t MAX31865Sensor::read_register_(uint8_t reg) {
@@ -118,7 +121,8 @@ void SC16IS75X_SPI_Component::set_pin_direction_(uint8_t pin, gpio::Flags flags)
 //
 void SC16IS75X_SPI_Component::setup() {
   const char *model_name = (this->model_ == SC16IS750_MODEL) ? "SC16IS750" : "SC16IS752";
-  ESP_LOGCONFIG(TAG, "Setting up SC16IS75X:%s with %d UARTs...", this->get_name(), this->children_.size());
+  ESP_LOGCONFIG(TAG, "Setting up %s:%s with %d UARTs...", model_name, this->get_name(), this->children_.size());
+  this->spi_setup();
   // setup our children
   for (auto child : this->children_)
     child->setup_channel();
@@ -126,10 +130,10 @@ void SC16IS75X_SPI_Component::setup() {
 
 void SC16IS75X_SPI_Component::dump_config() {
   const char *model_name = (this->model_ == SC16IS750_MODEL) ? "SC16IS750" : "SC16IS752";
-  ESP_LOGCONFIG(TAG, "SC16IS75X:%s with %d UARTs...", this->get_name(), this->children_.size());
+  ESP_LOGCONFIG(TAG, "SC16IS75X SPI:%s with %d UARTs...", this->get_name(), this->children_.size());
+  ESP_LOGCONFIG(TAG, "  Model %s", model_name);
   LOG_PIN("  CS Pin: ", this->cs_);
-  ESP_LOGCONFIG(TAG, "  model %s", model_name);
-  ESP_LOGCONFIG(TAG, "  crystal %d", this->crystal_);
+  ESP_LOGCONFIG(TAG, "  Crystal %d", this->crystal_);
 
   for (auto child : this->children_)
     child->dump_channel();
@@ -217,12 +221,15 @@ void SC16IS75XChannel::set_baudrate_() {
   const uint8_t high = (uint8_t) (divisor >> 8);
 
   uint8_t lcr;
-  this->parent_->write_sc16is75x_register_(SC16IS75X_REG_LCR, this->channel_, &lcr);
+  // TODO not needed at startup
+  // this->parent_->read_sc16is75x_register_(SC16IS75X_REG_LCR, this->channel_, &lcr);
   lcr |= 0x80;  // set LCR[7] to enable special registers
   this->parent_->write_sc16is75x_register_(SC16IS75X_REG_LCR, this->channel_, &lcr);
+  this->parent_->special_reg_ = 1;
   this->parent_->write_sc16is75x_register_(SC16IS75X_REG_DLL, this->channel_, &low);
   this->parent_->write_sc16is75x_register_(SC16IS75X_REG_DLH, this->channel_, &high);
   lcr &= 0x7F;  // reset LCR[7] to disable special registers
+  this->parent_->special_reg_ = 0;
   this->parent_->write_sc16is75x_register_(SC16IS75X_REG_LCR, this->channel_, &lcr);
 
   if (actual_baudrate == this->baud_rate_)
@@ -235,11 +242,11 @@ void SC16IS75XChannel::set_baudrate_() {
              actual_baudrate);
 }
 
-void SC16IS75XChannel::write_data_(const uint8_t *buffer, size_t length) {
+inline void SC16IS75XChannel::write_data_(const uint8_t *buffer, size_t length) {
   this->parent_->write_sc16is75x_register_(SC16IS75X_REG_THR, this->channel_, buffer, length);
 }
 
-void SC16IS75XChannel::read_data_(uint8_t *buffer, size_t length) {
+inline void SC16IS75XChannel::read_data_(uint8_t *buffer, size_t length) {
   this->parent_->read_sc16is75x_register_(SC16IS75X_REG_RHR, this->channel_, buffer, length);
 }
 
@@ -274,7 +281,6 @@ std::string SC16IS75XGPIOPin::dump_summary() const {
 ///////////////////////////////////////////////////////////////////////////////
 /// TEST FUNCTIONS BELOW
 ///////////////////////////////////////////////////////////////////////////////
-#define TEST_COMPONENT
 #ifdef TEST_COMPONENT
 
 void SC16IS75X_SPI_Component::test_gpio_() {
@@ -321,24 +327,24 @@ void SC16IS75X_SPI_Component::loop() {
     child->rx_fifo_to_buffer_();
   }
   if (test_mode_)
-    ESP_LOGI(TAG, "transfer rx fifo to buffer - execution time %d µs...", elapsed(time));
+    ESP_LOGI(TAG, "transfer rx fifo to buffer - execution time %d ms...", elapsed(time));
 
   if (test_mode_ == 1) {
-    char preamble[64];
+    char message[64];
     elapsed(time);  // set time to now
-    for (auto i = 0; i < children_.size(); i++) {
-      snprintf(preamble, sizeof(preamble), "SC16IS75X_%s_Ch_%d", this->get_name(), i);
-      children_[i]->uart_send_test(preamble);
-      ESP_LOGI(TAG, "uart_send_test - execution time %d µs...", elapsed(time));
-      children_[i]->uart_receive_test(preamble, true);
-      ESP_LOGI(TAG, "uart_receive_test - execution time %d µs...", elapsed(time));
+    for (auto child : this->children_) {
+      snprintf(message, sizeof(message), "%s:%s", this->get_name(), child->get_channel_name());
+      child->uart_send_test(message);
+      ESP_LOGI(TAG, "uart_send_test - execution time %d ms...", elapsed(time));
+      child->uart_receive_test(message);
+      ESP_LOGI(TAG, "uart_receive_test - execution time %d ms...", elapsed(time));
     }
   }
 
   if (test_mode_ == 2) {
     elapsed(time);  // set time to now
     test_gpio_();
-    ESP_LOGI(TAG, "test gpio - execution time %d µs...", elapsed(time));
+    ESP_LOGI(TAG, "test gpio - execution time %d ms...", elapsed(time));
   }
 
   ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
