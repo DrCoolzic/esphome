@@ -93,15 +93,15 @@ void SC16IS75X_SPI_Component::read_sc16is75x_register_(uint8_t reg, Channel chan
 // }
 
 bool SC16IS75X_SPI_Component::read_pin_val_(uint8_t pin) {
-  this->read_sc16is75x_register_(SC16IS75X_REG_IOP, 0, &this->input_state_);
-  ESP_LOGVV(TAG, "reading input pin %d in_state %s", pin, I2CS(input_state_));
+  this->read_sc16is75x_register_(SC16IS75X_REG_IOS, 0, &this->input_state_);
+  ESP_LOGVV(TAG, "reading input pin %d = %d in_state %s", pin, this->input_state_ & (1 << pin), I2CS(input_state_));
   return this->input_state_ & (1 << pin);
 }
 
 void SC16IS75X_SPI_Component::write_pin_val_(uint8_t pin, bool value) {
   value ? this->output_state_ |= (1 << pin) : this->output_state_ &= ~(1 << pin);
-  ESP_LOGV(TAG, "writing output pin %d out_state %s", pin, I2CS(this->output_state_));
-  this->write_sc16is75x_register_(SC16IS75X_REG_IOP, 0, &this->output_state_);
+  ESP_LOGV(TAG, "writing output pin %d with %d out_state %s", pin, value, I2CS(this->output_state_));
+  this->write_sc16is75x_register_(SC16IS75X_REG_IOS, 0, &this->output_state_);
 }
 
 void SC16IS75X_SPI_Component::set_pin_direction_(uint8_t pin, gpio::Flags flags) {
@@ -221,8 +221,6 @@ void SC16IS75XChannel::set_baudrate_() {
   const uint8_t high = (uint8_t) (divisor >> 8);
 
   uint8_t lcr;
-  // TODO not needed at startup
-  // this->parent_->read_sc16is75x_register_(SC16IS75X_REG_LCR, this->channel_, &lcr);
   lcr |= 0x80;  // set LCR[7] to enable special registers
   this->parent_->write_sc16is75x_register_(SC16IS75X_REG_LCR, this->channel_, &lcr);
   this->parent_->special_reg_ = 1;
@@ -283,27 +281,43 @@ std::string SC16IS75XGPIOPin::dump_summary() const {
 ///////////////////////////////////////////////////////////////////////////////
 #ifdef TEST_COMPONENT
 
-void SC16IS75X_SPI_Component::test_gpio_() {
-  static bool init{false};
-  if (!init) {
-    init = true;
-    input_state_ = 0;
-    output_state_ = 0;
-    for (int i = 0; i < 8; i++) {
-      // set 4 first pins in input mode
-      // set 4 next pins in output mode
-      this->set_pin_direction_(i, (i < 4) ? esphome::gpio::Flags::FLAG_INPUT : esphome::gpio::Flags::FLAG_OUTPUT);
-    }
-    ESP_LOGI(TAG, "pins configuration: %s", I2CS(this->pin_config_));
+void SC16IS75X_SPI_Component::test_gpio_input_() {
+  static bool init_input{false};
+  static uint8_t state, value;
+  if (!init_input) {
+    init_input = true;
+    uint8_t io_dir = 0x00;
+    // set all pins in input mode
+    this->write_sc16is75x_register_(SC16IS75X_REG_IOD, 0, &io_dir);
+    ESP_LOGI(TAG, "initializing all pins to input - configuration: %s", I2CS(io_dir));
+    this->read_sc16is75x_register_(SC16IS75X_REG_IOS, 0, &state);
+    ESP_LOGI(TAG, "initial input register = %02X (%s)", state, I2CS(state));
   }
-  for (int i = 0; i < 4; i++) {
-    // read inputs
-    auto val = this->read_pin_val_(i);
-    // copy input to output
-    this->write_pin_val_(i + 4, val);
+  this->read_sc16is75x_register_(SC16IS75X_REG_IOS, 0, &value);
+  if (value != state) {
+    ESP_LOGI(TAG, "Input value changed from %02X to %02X (%s)", state, value, I2CS(value));
+    state = value;
   }
-  ESP_LOGI(TAG, "input pins: %s", I2CS(this->input_state_));
-  ESP_LOGI(TAG, "output pins: %s", I2CS(this->output_state_));
+}
+
+void SC16IS75X_SPI_Component::test_gpio_output_() {
+  static bool init_output{false};
+  static uint8_t state = 0x00;
+  uint8_t value;
+  if (!init_output) {
+    init_output = true;
+    uint8_t io_dir = 0xFF;
+    // set all pins in output mode
+    this->write_sc16is75x_register_(SC16IS75X_REG_IOD, 0, &io_dir);
+    ESP_LOGI(TAG, "initializing all pins to output - configuration: %s", I2CS(io_dir));
+    this->write_sc16is75x_register_(SC16IS75X_REG_IOS, 0, &state);
+    ESP_LOGI(TAG, "initial output register = %02X (%s)", state, I2CS(state));
+  }
+
+  value = ~state;
+  this->write_sc16is75x_register_(SC16IS75X_REG_IOS, 0, &value);
+  ESP_LOGI(TAG, "Flipping outputs from %02X to %02X (%s)", state, value, I2CS(value));
+  state = value;
 }
 
 void SC16IS75X_SPI_Component::loop() {
@@ -315,10 +329,11 @@ void SC16IS75X_SPI_Component::loop() {
   uint32_t time = 0;
 
   if (test_mode_) {
-    ESP_LOGI(TAG, "Component loop %d for %s : %d ms since last call ...", loop_count++, this->get_name(),
+    ESP_LOGV(TAG, "Component loop %d for %s : %d ms since last call ...", loop_count, this->get_name(),
              millis() - loop_time);
   }
   loop_time = millis();
+  loop_count++;
 
   // here we transfer bytes from fifo to ring buffers
   elapsed(time);  // set time to now
@@ -327,7 +342,7 @@ void SC16IS75X_SPI_Component::loop() {
     child->rx_fifo_to_buffer_();
   }
   if (test_mode_)
-    ESP_LOGI(TAG, "transfer rx fifo to buffer - execution time %d ms...", elapsed(time));
+    ESP_LOGV(TAG, "transfer rx fifo to buffer - execution time %d ms...", elapsed(time));
 
   if (test_mode_ == 1) {
     char message[64];
@@ -335,19 +350,35 @@ void SC16IS75X_SPI_Component::loop() {
     for (auto child : this->children_) {
       snprintf(message, sizeof(message), "%s:%s", this->get_name(), child->get_channel_name());
       child->uart_send_test(message);
-      ESP_LOGI(TAG, "uart_send_test - execution time %d ms...", elapsed(time));
-      child->uart_receive_test(message);
-      ESP_LOGI(TAG, "uart_receive_test - execution time %d ms...", elapsed(time));
+      ESP_LOGV(TAG, "uart_send_test - execution time %d ms...", elapsed(time));
+      uint32_t const start_time = millis();
+      while (child->rx_in_fifo_() < child->fifo_size_()) {  // wait until buffer empty
+        if (millis() - start_time > 100) {
+          ESP_LOGE(TAG, "Timed out waiting for bytes - %d bytes in buffer...", child->rx_in_fifo_());
+          break;
+        }
+        yield();  // reschedule our thread to avoid blocking
+      }
+      bool status = child->uart_receive_test(message);
+      ESP_LOGI(TAG, "Loop %d send/received %d bytes %s", loop_count, child->fifo_size_(),
+               status ? "correctly" : "with error");
+      ESP_LOGV(TAG, "uart_receive_test - execution time %d ms...", elapsed(time));
     }
   }
 
   if (test_mode_ == 2) {
     elapsed(time);  // set time to now
-    test_gpio_();
-    ESP_LOGI(TAG, "test gpio - execution time %d ms...", elapsed(time));
+    test_gpio_input_();
+    ESP_LOGV(TAG, "test gpio input - execution time %d ms...", elapsed(time));
   }
 
-  ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
+  if (test_mode_ == 3) {
+    elapsed(time);  // set time to now
+    test_gpio_output_();
+    ESP_LOGV(TAG, "test gpio output - execution time %d ms...", elapsed(time));
+  }
+
+  ESP_LOGV(TAG, "loop execution time %d ms...", millis() - loop_time);
 }
 #endif
 

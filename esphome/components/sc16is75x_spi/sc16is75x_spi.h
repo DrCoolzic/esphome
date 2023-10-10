@@ -30,7 +30,7 @@ constexpr uint8_t SC16IS75X_REG_TLR = 0X07;  ///< 38 trigger level register (r/w
 constexpr uint8_t SC16IS75X_REG_TXF = 0X08;  ///< 40 transmit FIFO level register (ro)
 constexpr uint8_t SC16IS75X_REG_RXF = 0X09;  ///< 48 receive FIFO level register (ro)
 constexpr uint8_t SC16IS75X_REG_IOD = 0X0A;  ///< 50 I/O pin direction register (r/w)
-constexpr uint8_t SC16IS75X_REG_IOP = 0X0B;  ///< 58 I/O pin state register (r/w)
+constexpr uint8_t SC16IS75X_REG_IOS = 0X0B;  ///< 58 I/O pin state register (r/w)
 constexpr uint8_t SC16IS75X_REG_IOI = 0X0C;  ///< 60 I/O interrupt enable register (r/w)
 constexpr uint8_t SC16IS75X_REG_IOC = 0X0E;  ///< 70 I/O pin control register (r/w)
 constexpr uint8_t SC16IS75X_REG_XFR = 0X0F;  ///< 78 extra features register (r/w)
@@ -112,7 +112,8 @@ class SC16IS75X_SPI_Component : public Component,
 
 #ifdef TEST_COMPONENT
   /// @brief for testing the GPIO pins
-  void test_gpio_();
+  void test_gpio_input_();
+  void test_gpio_output_();
 #endif
 
   /// pin config mask: 1 means OUTPUT, 0 means INPUT

@@ -133,39 +133,42 @@ void print_buffer(std::vector<uint8_t> buffer) {
 /// @brief test the write_array method
 void UARTBase::uart_send_test(char *message) {
   auto start_exec = micros();
-  uint8_t to_send = this->fifo_size_() - tx_in_fifo_();
+  uint8_t to_send = this->fifo_size_();
   this->flush();  // we wait until they are gone
 
   if (to_send > 0) {
     std::vector<uint8_t> output_buffer(to_send);
     generate(output_buffer.begin(), output_buffer.end(), Increment());  // fill with incrementing number
     this->write_array(&output_buffer[0], to_send);                      // we send the buffer
-    //    ESP_LOGI(TAG, "%s => sending %d bytes - exec time %d ms ...", message, to_send, millis() - start_exec);
-    ESP_LOGI(TAG, "%s => sending %d bytes - exec time %d µs ...", message, to_send, micros() - start_exec);
+    ESP_LOGV(TAG, "%s => sending %d bytes - exec time %d µs ...", message, to_send, micros() - start_exec);
   }
 }
 
 /// @brief test read_array method
-void UARTBase::uart_receive_test(char *message) {
+bool UARTBase::uart_receive_test(char *message) {
   auto start_exec = micros();
   bool status = true;
   uint8_t to_read = rx_in_fifo_();
-  if (to_read < this->fifo_size_())
-    ESP_LOGI(TAG, "%s => %d bytes received expected %d ...", message, to_read, this->fifo_size_());
 
   if (to_read > 0) {
     std::vector<uint8_t> buffer(to_read);
     status = read_array(&buffer[0], to_read);
     for (int i = 0; i < to_read; i++) {
       if (buffer[i] != i) {
-        ESP_LOGE(TAG, "%s => invalid bytes received...");
+        ESP_LOGE(TAG, "Read buffer contains error...");
         print_buffer(buffer);
+        status = false;
         break;
       }
     }
   }
-  ESP_LOGI(TAG, "%s => %d bytes received status %s - exec time %d µs ...", message, to_read, status ? "OK" : "ERROR",
+  if (to_read < this->fifo_size_()) {
+    ESP_LOGE(TAG, "%s => %d bytes received expected %d ...", message, to_read, this->fifo_size_());
+    status = false;
+  }
+  ESP_LOGV(TAG, "%s => %d bytes received status %s - exec time %d µs ...", message, to_read, status ? "OK" : "ERROR",
            micros() - start_exec);
+  return status;
 }
 #endif
 

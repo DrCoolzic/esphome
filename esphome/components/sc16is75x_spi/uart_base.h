@@ -233,7 +233,7 @@ class UARTBase : public uart::UARTComponent {
 #ifdef TEST_COMPONENT
   // for test
   void uart_send_test(char *message);
-  void uart_receive_test(char *message);
+  bool uart_receive_test(char *message);
 #endif
 
   bool flush_requested_{false};  ///< flush was requested but not honored
