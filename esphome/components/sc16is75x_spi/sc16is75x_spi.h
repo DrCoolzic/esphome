@@ -6,10 +6,12 @@
 #include <bitset>
 #include "esphome/core/component.h"
 #include "esphome/components/spi/spi.h"
-#include "uart_base.h"
+#include "esphome/components/uart/uart.h"
 
 namespace esphome {
 namespace sc16is75x_spi {
+
+#define TEST_COMPONENT
 
 // size of the fifo
 constexpr size_t FIFO_SIZE = 64;
@@ -65,7 +67,7 @@ using Channel = uint8_t;  ///< Channel definition
 ///////////////////////////////////////////////////////////////////////////////
 class SC16IS75X_SPI_Component : public Component,
                                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
-                                                      spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_4MHZ> {
+                                                      spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_8MHZ> {
  public:
   void set_model(SC16IS75XComponentModel model) { this->model_ = model; }
   void set_crystal(uint32_t crystal) { this->crystal_ = crystal; }
@@ -79,8 +81,8 @@ class SC16IS75X_SPI_Component : public Component,
 
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::IO; }
   void loop() override;
+  float get_setup_priority() const override { return setup_priority::IO; }
 
  protected:
   // we give access to protected objects to our friends :)
@@ -114,6 +116,7 @@ class SC16IS75X_SPI_Component : public Component,
   /// @brief for testing the GPIO pins
   void test_gpio_input_();
   void test_gpio_output_();
+
 #endif
 
   /// pin config mask: 1 means OUTPUT, 0 means INPUT
@@ -134,14 +137,25 @@ class SC16IS75X_SPI_Component : public Component,
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Describes the UART part of a SC16IS75X component.
+/// @brief Describes the SC16IS75XChannel class
 ///
-/// This class derives from the @ref uart_base::UARTBase virtual class.
-/// we must therefore provide several methods for the virtual class
+/// This class derives from the virtual @ref uart::UARTComponent class.
+///
+/// Unfortunately I have not found **any documentation** about the
+/// uart::UARTDevice and uart::UARTComponent classes of @ref ESPHome.\n
+/// However it seems that both of them are based on Arduino library.\n
+///
+/// Most of the interfaces provided by the Arduino Serial library are **poorly
+/// defined** and it seems that the API has even \b changed over time!\n
+/// The esphome::uart::UARTDevice class directly relates to the **Serial Class**
+/// in Arduino and that derives from **Stream class**.\n
+/// For compatibility reason (?) many helper methods are made available in
+/// ESPHome to read and write. Unfortunately in many cases these helpers
+/// are missing the critical status information and therefore are even
+/// more unsafe to use...\n
 ///////////////////////////////////////////////////////////////////////////////
-class SC16IS75XChannel : public sc16is75x_spi::UARTBase {
+class SC16IS75XChannel : public uart::UARTComponent {
  public:
-  SC16IS75XChannel() : UARTBase(FIFO_SIZE) {}
   void set_parent(SC16IS75X_SPI_Component *parent) {
     this->parent_ = parent;
     this->parent_->children_.push_back(this);  // add ourself to the vector list
@@ -150,42 +164,107 @@ class SC16IS75XChannel : public sc16is75x_spi::UARTBase {
   void set_channel_name(std::string name) { this->name_ = std::move(name); }
   const char *get_channel_name() { return this->name_.c_str(); }
 
-  void setup_channel();
-  void dump_channel();
+  /// @brief Writes a specified number of bytes toward a serial port
+  /// @param buffer pointer to the buffer
+  /// @param length number of bytes to write
+  ///
+  /// This method sends 'length' characters from the buffer to the serial line.
+  /// Unfortunately (unlike the Arduino equivalent) this method
+  /// does not return any flag and therefore it is not possible to know
+  /// if any/all bytes have been transmitted correctly. Another problem
+  /// is that it is not possible to know ahead of time how many bytes we
+  /// can safely send as there is no tx_available() method provided!
+  /// To avoid overrun when using the write method you can use the flush()
+  /// method to wait until the transmit fifo is empty.
+  ///
+  /// Typical usage could be:
+  /// @code
+  ///   // ...
+  ///   uint8_t buffer[128];
+  ///   // ...
+  ///   write_array(&buffer, length);
+  ///   flush();
+  ///   // ...
+  /// @endcode
+  void write_array(const uint8_t *buffer, size_t length) override;
+
+  /// @brief Reads a specified number of bytes from a serial port
+  /// @param buffer buffer to store the bytes
+  /// @param length number of bytes to read
+  /// @return true if succeed, false otherwise
+  ///
+  /// Typical usage:
+  /// @code
+  ///   // ...
+  ///   auto length = available();
+  ///   uint8_t buffer[128];
+  ///   if (length > 0) {
+  ///     auto status = read_array(&buffer, length)
+  ///     // test status ...
+  ///   }
+  /// @endcode
+  bool read_array(uint8_t *buffer, size_t length) override;
+
+  /// @brief Reads first byte in FIFO without removing it
+  /// @param buffer pointer to the byte
+  /// @return true if succeed reading one byte, false if no character available
+  ///
+  /// This method returns the next byte from receiving buffer without
+  /// removing it from the internal fifo. It returns true if a character
+  /// is available and has been read, false otherwise.\n
+  bool peek_byte(uint8_t *buffer) override { return true; }  // TODO
+
+  /// @brief Returns the number of bytes in the receive buffer
+  /// @return the number of bytes available in the receiver fifo
+  int available() override { return this->rx_in_fifo_(); }
+
+  /// @brief Flush the output fifo.
+  ///
+  /// If we refer to Serial.flush() in Arduino it says: ** Waits for the transmission
+  /// of outgoing serial data to complete. (Prior to Arduino 1.0, this the method was
+  /// removing any buffered incoming serial data.). **
+  void flush() override;
 
  protected:
   friend class SC16IS75X_SPI_Component;
+
+  /// @brief this cannot happen with external uart
+  void check_logger_conflict() override {}
+
   /// @brief returns the number of bytes currently in the receiver fifo
   /// @return the number of bytes
-  size_t rx_in_fifo_() override { return this->read_register_(SC16IS75X_REG_RXF); }
+  size_t rx_in_fifo_() { return this->read_register_(SC16IS75X_REG_RXF); }
 
   /// @brief returns the number of bytes currently in the transmitter fifo
   /// @return the number of bytes
-  size_t tx_in_fifo_() override { return this->fifo_size_() - this->read_register_(SC16IS75X_REG_TXF); }
+  size_t tx_in_fifo_() { return FIFO_SIZE - this->read_register_(SC16IS75X_REG_TXF); }
 
   /// @brief returns true if the transmit buffer is empty
   /// @return returns true if the transmit buffer is empty
-  bool tx_fifo_is_not_empty_() override { return !this->read_register_(SC16IS75X_REG_LSR) & 0x40; }
-
-  const size_t fifo_size_() override { return FIFO_SIZE; }
+  bool tx_fifo_is_not_empty_() { return !this->read_register_(SC16IS75X_REG_LSR) & 0x40; }
 
   /// @brief Write data into the transmitter fifo
   /// @param buffer the input buffer
   /// @param length the number of bytes we want to transmit
-  void write_data_(const uint8_t *buffer, size_t length) override;
+  void write_data_(const uint8_t *buffer, size_t length);
 
   /// @brief Read data from the receiver fifo
   /// @param buffer the output buffer
   /// @param length the number of bytes we want to read
-  void read_data_(uint8_t *buffer, size_t length) override;
+  void read_data_(uint8_t *buffer, size_t length);
 
-  // helpers
   inline uint8_t read_register_(int reg_address) {
     this->parent_->read_sc16is75x_register_(reg_address, this->channel_, &this->data_);
     return this->data_;
   }
+#ifdef TEST_COMPONENT
+  void uart_send_test_(char *message);
+  bool uart_receive_test_(char *message);
+#endif
   void set_line_param_();
   void set_baudrate_();
+  void setup_channel_();
+  void dump_channel_();
 
   SC16IS75X_SPI_Component *parent_;  ///< our parent
   Channel channel_;                  ///< our channel number

@@ -83,15 +83,6 @@ void SC16IS75X_SPI_Component::read_sc16is75x_register_(uint8_t reg, Channel chan
             read_reg_to_str[this->special_reg_][reg], channel, ca, *data, length);
 }
 
-// uint8_t MAX31865Sensor::read_register_(uint8_t reg) {
-//   this->enable();
-//   this->write_byte(reg);
-//   const uint8_t value(this->read_byte());
-//   this->disable();
-//   ESP_LOGVV(TAG, "read_register_ 0x%02X: 0x%02X", reg, value);
-//   return value;
-// }
-
 bool SC16IS75X_SPI_Component::read_pin_val_(uint8_t pin) {
   this->read_sc16is75x_register_(SC16IS75X_REG_IOS, 0, &this->input_state_);
   ESP_LOGVV(TAG, "reading input pin %d = %d in_state %s", pin, this->input_state_ & (1 << pin), I2CS(input_state_));
@@ -125,7 +116,7 @@ void SC16IS75X_SPI_Component::setup() {
   this->spi_setup();
   // setup our children
   for (auto child : this->children_)
-    child->setup_channel();
+    child->setup_channel_();
 }
 
 void SC16IS75X_SPI_Component::dump_config() {
@@ -136,24 +127,23 @@ void SC16IS75X_SPI_Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  Crystal %d", this->crystal_);
 
   for (auto child : this->children_)
-    child->dump_channel();
+    child->dump_channel_();
   this->initialized_ = true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // The SC16IS75XChannel methods
 ///////////////////////////////////////////////////////////////////////////////
-void SC16IS75XChannel::setup_channel() {
+void SC16IS75XChannel::setup_channel_() {
   ESP_LOGCONFIG(TAG, "  Setting up UART %s:%s...", this->parent_->get_name(), this->get_channel_name());
 
-  // reset and enable the fifo
-  uint8_t fcr = 0x7;
+  uint8_t fcr = 0x7;  // reset and enable the fifo
   this->parent_->write_sc16is75x_register_(SC16IS75X_REG_FCR, this->channel_, &fcr);
   this->set_baudrate_();
   this->set_line_param_();
 }
 
-void SC16IS75XChannel::dump_channel() {
+void SC16IS75XChannel::dump_channel_() {
   ESP_LOGCONFIG(TAG, "  UART bus %s:%s...", this->parent_->get_name(), this->get_channel_name());
   ESP_LOGCONFIG(TAG, "    baudrate %d Bd", this->baud_rate_);
   ESP_LOGCONFIG(TAG, "    data_bits %d", this->data_bits_);
@@ -200,8 +190,6 @@ void SC16IS75XChannel::set_line_param_() {
 }
 
 void SC16IS75XChannel::set_baudrate_() {
-  // crystal on SC16IS750 is 14.7456MHz => max speed 14745600/16 = 921,600bps.
-  // crystal on SC16IS752 is 3.072MHz => max speed 14745600/16 = 192,000bps
   uint8_t pre_scaler = 1;  // we never use it... but we could if crystal is very high ...
   // (read_register_(SC16IS75X_REG_MCR) & 0x80) == 0 ? pre_scaler = 1 : pre_scaler = 4;
 
@@ -248,6 +236,56 @@ inline void SC16IS75XChannel::read_data_(uint8_t *buffer, size_t length) {
   this->parent_->read_sc16is75x_register_(SC16IS75X_REG_RHR, this->channel_, buffer, length);
 }
 
+void SC16IS75XChannel::write_array(const uint8_t *buffer, size_t length) {
+  if (length > FIFO_SIZE) {
+    ESP_LOGE(TAG, "write_array() invalid call: requested %d bytes max size %d ...", length, FIFO_SIZE);
+    length = FIFO_SIZE;
+  }
+
+  uint32_t const start_time = millis();
+  // we wait until we have enough space in fifo
+  while (length > (FIFO_SIZE - this->tx_in_fifo_())) {
+    if (millis() - start_time > 100) {
+      ESP_LOGE(TAG, "write_array() overrun: %d bytes in fifo...", this->tx_in_fifo_());
+      break;
+    }
+    yield();  // reschedule our thread to avoid blocking
+  }
+  this->write_data_(buffer, length);
+}
+
+void SC16IS75XChannel::flush() {
+  uint32_t const start_time = millis();
+  // we wait until fifo is empty
+  while (this->tx_in_fifo_()) {
+    if (millis() - start_time > 100) {
+      ESP_LOGE(TAG, "flush() timed out: still %d bytes not sent...", this->tx_in_fifo_());
+      break;
+    }
+    yield();  // reschedule our thread to avoid blocking
+  }
+  ESP_LOGVV(TAG, "flush(): flushed the bytes in tx fifo");
+}
+
+bool SC16IS75XChannel::read_array(uint8_t *buffer, size_t length) {
+  if (length > FIFO_SIZE) {
+    ESP_LOGE(TAG, "read_array() invalid call: requested %d bytes max size %d ...", length, FIFO_SIZE);
+    return false;
+  }
+
+  // we wait until we have received the requested bytes
+  uint32_t const start_time = millis();
+  while (length > this->rx_in_fifo_()) {
+    if (millis() - start_time > 100) {
+      ESP_LOGE(TAG, "read_array() underrun: %d bytes requested %d received", length, this->rx_in_fifo_());
+      return false;
+    }
+    yield();  // reschedule our thread to avoid blocking
+  }
+  this->read_data_(buffer, length);
+  return true;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // The SC16IS75XGPIOPin methods
 ///////////////////////////////////////////////////////////////////////////////
@@ -280,6 +318,71 @@ std::string SC16IS75XGPIOPin::dump_summary() const {
 /// TEST FUNCTIONS BELOW
 ///////////////////////////////////////////////////////////////////////////////
 #ifdef TEST_COMPONENT
+class Increment {  // A increment "Functor" (A class object that acts like a method with state!)
+ public:
+  Increment() : i_(0) {}
+  uint8_t operator()() { return i_++; }
+
+ private:
+  uint8_t i_;
+};
+
+void print_buffer(std::vector<uint8_t> buffer) {
+  // quick and ugly hex converter to display buffer in hex format
+  char hex_buffer[80];
+  hex_buffer[50] = 0;
+  for (size_t i = 0; i < buffer.size(); i++) {
+    snprintf(&hex_buffer[3 * (i % 16)], sizeof(hex_buffer), "%02X ", buffer[i]);
+    if (i % 16 == 15)
+      ESP_LOGI(TAG, "   %s", hex_buffer);
+  }
+  if (buffer.size() % 16) {
+    // null terminate if incomplete line
+    hex_buffer[3 * (buffer.size() % 16) + 2] = 0;
+    ESP_LOGI(TAG, "   %s", hex_buffer);
+  }
+}
+
+/// @brief test the write_array method
+void SC16IS75XChannel::uart_send_test_(char *message) {
+  auto start_exec = micros();
+  uint8_t to_send = FIFO_SIZE;
+  this->flush();  // we wait until they are gone
+
+  if (to_send > 0) {
+    std::vector<uint8_t> output_buffer(to_send);
+    generate(output_buffer.begin(), output_buffer.end(), Increment());  // fill with incrementing number
+    this->write_array(&output_buffer[0], to_send);                      // we send the buffer
+    ESP_LOGV(TAG, "%s => sending %d bytes - exec time %d µs ...", message, to_send, micros() - start_exec);
+  }
+}
+
+/// @brief test read_array method
+bool SC16IS75XChannel::uart_receive_test_(char *message) {
+  auto start_exec = micros();
+  bool status = true;
+  uint8_t to_read = rx_in_fifo_();
+
+  if (to_read > 0) {
+    std::vector<uint8_t> buffer(to_read);
+    status = read_array(&buffer[0], to_read);
+    for (int i = 0; i < to_read; i++) {
+      if (buffer[i] != i) {
+        ESP_LOGE(TAG, "Read buffer contains error...");
+        print_buffer(buffer);
+        status = false;
+        break;
+      }
+    }
+  }
+  if (to_read < FIFO_SIZE) {
+    ESP_LOGE(TAG, "%s => %d bytes received expected %d ...", message, to_read, FIFO_SIZE);
+    status = false;
+  }
+  ESP_LOGV(TAG, "%s => %d bytes received status %s - exec time %d µs ...", message, to_read, status ? "OK" : "ERROR",
+           micros() - start_exec);
+  return status;
+}
 
 void SC16IS75X_SPI_Component::test_gpio_input_() {
   static bool init_input{false};
@@ -335,33 +438,23 @@ void SC16IS75X_SPI_Component::loop() {
   loop_time = millis();
   loop_count++;
 
-  // here we transfer bytes from fifo to ring buffers
-  elapsed(time);  // set time to now
-  for (auto *child : this->children_) {
-    // we look if some characters has been received in the fifo
-    child->rx_fifo_to_buffer_();
-  }
-  if (test_mode_)
-    ESP_LOGV(TAG, "transfer rx fifo to buffer - execution time %d ms...", elapsed(time));
-
   if (test_mode_ == 1) {
     char message[64];
     elapsed(time);  // set time to now
     for (auto child : this->children_) {
       snprintf(message, sizeof(message), "%s:%s", this->get_name(), child->get_channel_name());
-      child->uart_send_test(message);
+      child->uart_send_test_(message);
       ESP_LOGV(TAG, "uart_send_test - execution time %d ms...", elapsed(time));
       uint32_t const start_time = millis();
-      while (child->rx_in_fifo_() < child->fifo_size_()) {  // wait until buffer empty
+      while (child->rx_in_fifo_() < FIFO_SIZE) {  // wait until buffer empty
         if (millis() - start_time > 100) {
           ESP_LOGE(TAG, "Timed out waiting for bytes - %d bytes in buffer...", child->rx_in_fifo_());
           break;
         }
         yield();  // reschedule our thread to avoid blocking
       }
-      bool status = child->uart_receive_test(message);
-      ESP_LOGI(TAG, "Loop %d send/received %d bytes %s", loop_count, child->fifo_size_(),
-               status ? "correctly" : "with error");
+      bool status = child->uart_receive_test_(message);
+      ESP_LOGI(TAG, "Loop %d send/received %d bytes %s", loop_count, FIFO_SIZE, status ? "correctly" : "with error");
       ESP_LOGV(TAG, "uart_receive_test - execution time %d ms...", elapsed(time));
     }
   }
@@ -380,6 +473,8 @@ void SC16IS75X_SPI_Component::loop() {
 
   ESP_LOGV(TAG, "loop execution time %d ms...", millis() - loop_time);
 }
+#else
+void SC16IS75X_SPI_Component::loop() {}
 #endif
 
 }  // namespace sc16is75x_spi
