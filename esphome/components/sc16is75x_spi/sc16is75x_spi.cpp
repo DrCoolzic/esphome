@@ -64,23 +64,23 @@ inline static uint8_t address_on_bus(uint8_t reg_number, Channel channel, Transf
 ///////////////////////////////////////////////////////////////////////////////
 void SC16IS75X_SPI_Component::write_sc16is75x_register_(uint8_t reg, Channel channel, const uint8_t *data,
                                                         size_t length) {
-  auto ca = address_on_bus(reg, channel, Write);
+  auto aob = address_on_bus(reg, channel, Write);
   this->enable();
-  this->write_byte(ca);
+  this->write_byte(aob);
   this->write_array(data, length);
   this->disable();
   ESP_LOGVV(TAG, "write_sc16is75x_register_ [%s, %d] => %02X, b=%02X, length=%d",
-            write_reg_to_str[this->special_reg_][reg], channel, ca, *data, length);
+            write_reg_to_str[this->special_reg_][reg], channel, aob, *data, length);
 }
 
 void SC16IS75X_SPI_Component::read_sc16is75x_register_(uint8_t reg, Channel channel, uint8_t *data, size_t length) {
-  auto ca = address_on_bus(reg, channel, Read);
+  auto aob = address_on_bus(reg, channel, Read);
   this->enable();
-  this->write_byte(ca);
+  this->write_byte(aob);
   this->read_array(data, length);
   this->disable();
   ESP_LOGVV(TAG, "read_sc16is75x_register_ [%s, %X] => %02X, b=%02X, length=%d",
-            read_reg_to_str[this->special_reg_][reg], channel, ca, *data, length);
+            read_reg_to_str[this->special_reg_][reg], channel, aob, *data, length);
 }
 
 bool SC16IS75X_SPI_Component::read_pin_val_(uint8_t pin) {
@@ -102,7 +102,6 @@ void SC16IS75X_SPI_Component::set_pin_direction_(uint8_t pin, gpio::Flags flags)
     this->pin_config_ |= 1 << pin;  // set bit (output mode)
   else
     ESP_LOGE(TAG, "pin %d direction invalid", pin);
-
   ESP_LOGD(TAG, "setting pin %d direction to %d pin_config=%s", pin, flags, I2CS(this->pin_config_));
   this->write_sc16is75x_register_(SC16IS75X_REG_IOD, 0, &this->pin_config_);  // TODO check ~
 }
@@ -228,14 +227,6 @@ void SC16IS75XChannel::set_baudrate_() {
              actual_baudrate);
 }
 
-inline void SC16IS75XChannel::write_data_(const uint8_t *buffer, size_t length) {
-  this->parent_->write_sc16is75x_register_(SC16IS75X_REG_THR, this->channel_, buffer, length);
-}
-
-inline void SC16IS75XChannel::read_data_(uint8_t *buffer, size_t length) {
-  this->parent_->read_sc16is75x_register_(SC16IS75X_REG_RHR, this->channel_, buffer, length);
-}
-
 void SC16IS75XChannel::write_array(const uint8_t *buffer, size_t length) {
   if (length > FIFO_SIZE) {
     ESP_LOGE(TAG, "write_array() invalid call: requested %d bytes max size %d ...", length, FIFO_SIZE);
@@ -273,6 +264,13 @@ bool SC16IS75XChannel::read_array(uint8_t *buffer, size_t length) {
     return false;
   }
 
+  if (!peek_buffer_.empty) {  // test peek buffer
+    *buffer++ = peek_buffer_.data;
+    peek_buffer_.empty = true;
+    if (length-- == 1)
+      return true;
+  }
+
   // we wait until we have received the requested bytes
   uint32_t const start_time = millis();
   while (length > this->rx_in_fifo_()) {
@@ -283,6 +281,17 @@ bool SC16IS75XChannel::read_array(uint8_t *buffer, size_t length) {
     yield();  // reschedule our thread to avoid blocking
   }
   this->read_data_(buffer, length);
+  return true;
+}
+
+bool SC16IS75XChannel::peek_byte(uint8_t *buffer) {
+  if (peek_buffer_.empty && available() == 0)
+    return false;
+  if (peek_buffer_.empty) {
+    peek_buffer_.empty = false;
+    this->read_data_(&peek_buffer_.data, 1);
+  }
+  *buffer = peek_buffer_.data;
   return true;
 }
 
@@ -300,12 +309,6 @@ void SC16IS75XGPIOPin::setup() {
                                                              : "NOT SPECIFIED");
   // ESP_LOGCONFIG(TAG, "Setting GPIO pins direction/mode to '%s' %02X", i2s_(flags_), flags_);
   this->pin_mode(this->flags_);
-}
-
-void SC16IS75XGPIOPin::pin_mode(gpio::Flags flags) { this->parent_->set_pin_direction_(this->pin_, flags); }
-bool SC16IS75XGPIOPin::digital_read() { return this->parent_->read_pin_val_(this->pin_) != this->inverted_; }
-void SC16IS75XGPIOPin::digital_write(bool value) {
-  this->parent_->write_pin_val_(this->pin_, value != this->inverted_);
 }
 
 std::string SC16IS75XGPIOPin::dump_summary() const {
@@ -365,7 +368,14 @@ bool SC16IS75XChannel::uart_receive_test_(char *message) {
 
   if (to_read > 0) {
     std::vector<uint8_t> buffer(to_read);
-    status = read_array(&buffer[0], to_read);
+    uint8_t peek_value;
+    this->peek_byte(&peek_value);
+    if (peek_value != 0) {
+      ESP_LOGE(TAG, "Peek first byte error...");
+      print_buffer(buffer);
+      status = false;
+    }
+    status = this->read_array(&buffer[0], to_read);
     for (int i = 0; i < to_read; i++) {
       if (buffer[i] != i) {
         ESP_LOGE(TAG, "Read buffer contains error...");

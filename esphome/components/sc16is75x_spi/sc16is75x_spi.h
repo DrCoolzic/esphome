@@ -164,6 +164,10 @@ class SC16IS75XChannel : public uart::UARTComponent {
   void set_channel_name(std::string name) { this->name_ = std::move(name); }
   const char *get_channel_name() { return this->name_.c_str(); }
 
+  //
+  //  override UARTComponent methods
+  //
+
   /// @brief Writes a specified number of bytes toward a serial port
   /// @param buffer pointer to the buffer
   /// @param length number of bytes to write
@@ -212,7 +216,7 @@ class SC16IS75XChannel : public uart::UARTComponent {
   /// This method returns the next byte from receiving buffer without
   /// removing it from the internal fifo. It returns true if a character
   /// is available and has been read, false otherwise.\n
-  bool peek_byte(uint8_t *buffer) override { return true; }  // TODO
+  bool peek_byte(uint8_t *buffer) override;
 
   /// @brief Returns the number of bytes in the receive buffer
   /// @return the number of bytes available in the receiver fifo
@@ -233,7 +237,7 @@ class SC16IS75XChannel : public uart::UARTComponent {
 
   /// @brief returns the number of bytes currently in the receiver fifo
   /// @return the number of bytes
-  size_t rx_in_fifo_() { return this->read_register_(SC16IS75X_REG_RXF); }
+  size_t rx_in_fifo_() { return (this->read_register_(SC16IS75X_REG_RXF) + (this->peek_buffer_.empty ? 0 : 1)); }
 
   /// @brief returns the number of bytes currently in the transmitter fifo
   /// @return the number of bytes
@@ -246,21 +250,27 @@ class SC16IS75XChannel : public uart::UARTComponent {
   /// @brief Write data into the transmitter fifo
   /// @param buffer the input buffer
   /// @param length the number of bytes we want to transmit
-  void write_data_(const uint8_t *buffer, size_t length);
+  void write_data_(const uint8_t *buffer, size_t length) {
+    this->parent_->write_sc16is75x_register_(SC16IS75X_REG_THR, this->channel_, buffer, length);
+  }
 
   /// @brief Read data from the receiver fifo
   /// @param buffer the output buffer
   /// @param length the number of bytes we want to read
-  void read_data_(uint8_t *buffer, size_t length);
+  void read_data_(uint8_t *buffer, size_t length) {
+    this->parent_->read_sc16is75x_register_(SC16IS75X_REG_RHR, this->channel_, buffer, length);
+  }
 
   inline uint8_t read_register_(int reg_address) {
     this->parent_->read_sc16is75x_register_(reg_address, this->channel_, &this->data_);
     return this->data_;
   }
+
 #ifdef TEST_COMPONENT
   void uart_send_test_(char *message);
   bool uart_receive_test_(char *message);
 #endif
+
   void set_line_param_();
   void set_baudrate_();
   void setup_channel_();
@@ -270,6 +280,10 @@ class SC16IS75XChannel : public uart::UARTComponent {
   Channel channel_;                  ///< our channel number
   uint8_t data_{0};                  ///< one byte buffer
   std::string name_;                 ///< name of the entity
+  struct {
+    uint8_t data;      ///< store the read data
+    bool empty{true};  ///< peek buffer is empty ?
+  } peek_buffer_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -288,9 +302,10 @@ class SC16IS75XGPIOPin : public GPIOPin {
 
   void setup() override;
   std::string dump_summary() const override;
-  void pin_mode(gpio::Flags flags) override;
-  bool digital_read() override;
-  void digital_write(bool value) override;
+
+  void pin_mode(gpio::Flags flags) override { this->parent_->set_pin_direction_(this->pin_, flags); }
+  bool digital_read() override { return this->parent_->read_pin_val_(this->pin_) != this->inverted_; }
+  void digital_write(bool value) override { this->parent_->write_pin_val_(this->pin_, value != this->inverted_); }
 
  protected:
   SC16IS75X_SPI_Component *parent_{nullptr};
