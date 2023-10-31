@@ -1,6 +1,6 @@
 /// @file sc16s75x.h
 /// @author @DrCoolzic
-/// @brief sc16is75x interface declaration
+/// @brief sc16is75x_i2c interface declaration
 
 #pragma once
 #include <bitset>
@@ -9,12 +9,12 @@
 #include "uart_base.h"
 
 namespace esphome {
-namespace sc16is75x {
+namespace sc16is75x_i2c {
 
 // size of the fifo
 constexpr size_t FIFO_SIZE = 64;
 
-// General sc16is75x registers
+// General sc16is75x_i2c registers
 constexpr uint8_t SC16IS75X_REG_RHR = 0x00;  // 00 receive holding register (r) with a 64-bytes FIFO
 constexpr uint8_t SC16IS75X_REG_THR = 0X00;  // 00 transmit holding register (w) with a 64-bytes FIFO
 constexpr uint8_t SC16IS75X_REG_IER = 0X01;  // 08 interrupt enable register (r/w)
@@ -52,7 +52,7 @@ class SC16IS75XChannel;  ///< forward declaration
 using Channel = uint8_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief This class describes a SC16IS75X I²C component.
+/// @brief This class describes a sc16is75x_i2c I²C component.
 ///
 /// This class derives from two @ref esphome classes:
 /// - The @ref Virtual Component class. From this class we redefine the @ref Component::setup(),
@@ -131,7 +131,7 @@ class SC16IS75XComponent : public Component, public i2c::I2CDevice {
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Describes the UART part of a SC16IS75X I²C component.
+/// @brief Describes the UART part of a sc16is75x_i2c I²C component.
 ///
 /// This class derives from the @ref gen_uart::GenUARTChannel virtual class.
 /// we must therefore provide several methods for the virtual class
@@ -190,7 +190,7 @@ class SC16IS75XChannel : public uart_base::UARTBase {
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Helper class to expose a SC16IS75X pin as an internal input GPIO pin.
+/// @brief Helper class to expose a sc16is75x_i2c pin as an internal input GPIO pin.
 ///////////////////////////////////////////////////////////////////////////////
 class SC16IS75XGPIOPin : public GPIOPin {
  public:
@@ -216,5 +216,5 @@ class SC16IS75XGPIOPin : public GPIOPin {
   gpio::Flags flags_;
 };
 
-}  // namespace sc16is75x
+}  // namespace sc16is75x_i2c
 }  // namespace esphome

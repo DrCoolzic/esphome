@@ -1,13 +1,13 @@
 /// @file sc16s75x.cpp
 /// @author @DrCoolzic
-/// @brief sc16is75x implementation
+/// @brief sc16is75x_i2c implementation
 
-#include "sc16is75x.h"
+#include "sc16is75x_i2c.h"
 
 namespace esphome {
-namespace sc16is75x {
+namespace sc16is75x_i2c {
 
-static const char *const TAG = "sc16is75x";
+static const char *const TAG = "sc16is75x_i2c";
 
 /// @brief Converts the parity enumerator to a string
 /// @param parity enum
@@ -104,7 +104,7 @@ void SC16IS75XComponent::set_pin_direction_(uint8_t pin, gpio::Flags flags) {
 //
 void SC16IS75XComponent::setup() {
   const char *model_name = (this->model_ == SC16IS750_MODEL) ? "SC16IS750" : "SC16IS752";
-  ESP_LOGCONFIG(TAG, "Setting up SC16IS75X:%s i2c_addr @%02X with %d UARTs...", this->get_name(), this->address_,
+  ESP_LOGCONFIG(TAG, "Setting up sc16is75x_i2c:%s i2c_addr @%02X with %d UARTs...", this->get_name(), this->address_,
                 this->children_.size());
 
   // // we read anything just to test communication
@@ -120,7 +120,7 @@ void SC16IS75XComponent::setup() {
 
 void SC16IS75XComponent::dump_config() {
   const char *model_name = (this->model_ == SC16IS750_MODEL) ? "SC16IS750" : "SC16IS752";
-  ESP_LOGCONFIG(TAG, "SC16IS75X:%s with %d UARTs...", this->get_name(), this->children_.size());
+  ESP_LOGCONFIG(TAG, "sc16is75x_i2c:%s with %d UARTs...", this->get_name(), this->children_.size());
   ESP_LOGCONFIG(TAG, "  model %s", model_name);
   ESP_LOGCONFIG(TAG, "  crystal %d", this->crystal_);
 
@@ -265,7 +265,7 @@ void SC16IS75XGPIOPin::digital_write(bool value) {
 
 std::string SC16IS75XGPIOPin::dump_summary() const {
   char buffer[32];
-  snprintf(buffer, sizeof(buffer), "%u via SC16IS75X:%s", this->pin_, this->parent_->get_name());
+  snprintf(buffer, sizeof(buffer), "%u via sc16is75x_i2c:%s", this->pin_, this->parent_->get_name());
   return buffer;
 }
 
@@ -327,5 +327,5 @@ void SC16IS75XComponent::loop() {
 }
 #endif
 
-}  // namespace sc16is75x
+}  // namespace sc16is75x_i2c
 }  // namespace esphome

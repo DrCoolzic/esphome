@@ -18,18 +18,18 @@ from esphome.const import (
 CODEOWNERS = ["@DrCoolZic"]
 DEPENDENCIES = ["i2c"]
 
-sc16is75x_ns = cg.esphome_ns.namespace("sc16is75x")
-SC16IS75XComponent = sc16is75x_ns.class_(
+sc16is75x_i2c_ns = cg.esphome_ns.namespace("sc16is75x_i2c")
+SC16IS75XComponent = sc16is75x_i2c_ns.class_(
     "SC16IS75XComponent", cg.Component, i2c.I2CDevice
 )
-SC16IS75XChannel = sc16is75x_ns.class_(
+SC16IS75XChannel = sc16is75x_i2c_ns.class_(
     "SC16IS75XChannel", cg.Component, uart.UARTComponent
 )
-SC16IS75XGPIOPin = sc16is75x_ns.class_(
+SC16IS75XGPIOPin = sc16is75x_i2c_ns.class_(
     "SC16IS75XGPIOPin", cg.GPIOPin, cg.Parented.template(SC16IS75XComponent)
 )
 
-CONF_SC16IS75X = "sc16is75x"
+CONF_SC16IS75X = "sc16is75x_i2c"
 MULTI_CONF = True
 CONF_STOP_BITS = "stop_bits"
 CONF_DATA_BITS = "data_bits"
@@ -39,7 +39,7 @@ CONF_CRYSTAL = "crystal"
 CONF_UART = "uart"
 CONF_TEST_MODE = "test_mode"
 
-SC16IS75XComponentModel = sc16is75x_ns.enum("SC16IS75XComponentModel")
+SC16IS75XComponentModel = sc16is75x_i2c_ns.enum("SC16IS75XComponentModel")
 SC16IS75X_MODELS = {
     "SC16IS750": SC16IS75XComponentModel.SC16IS750_MODEL,
     "SC16IS752": SC16IS75XComponentModel.SC16IS752_MODEL,
@@ -142,8 +142,8 @@ SC16IS75X_PIN_SCHEMA = cv.All(
 )
 
 
-@pins.PIN_SCHEMA_REGISTRY.register("sc16is75x", SC16IS75X_PIN_SCHEMA)
-async def sc16is75x_pin_to_code(config):
+@pins.PIN_SCHEMA_REGISTRY.register("sc16is75x_i2c", SC16IS75X_PIN_SCHEMA)
+async def sc16is75x_i2c_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     parent = await cg.get_variable(config[CONF_SC16IS75X])
     cg.add(var.set_parent(parent))
