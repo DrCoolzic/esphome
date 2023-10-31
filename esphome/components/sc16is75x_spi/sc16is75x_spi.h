@@ -245,7 +245,7 @@ class SC16IS75XChannel : public uart::UARTComponent {
 
   /// @brief returns true if the transmit buffer is empty
   /// @return returns true if the transmit buffer is empty
-  bool tx_fifo_is_not_empty_() { return !this->read_register_(SC16IS75X_REG_LSR) & 0x40; }
+  bool tx_fifo_is_not_empty_() { return !(this->read_register_(SC16IS75X_REG_LSR) & 0x40); }
 
   /// @brief Write data into the transmitter fifo
   /// @param buffer the input buffer

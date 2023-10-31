@@ -147,7 +147,7 @@ void SC16IS75XChannel::dump_channel_() {
   ESP_LOGCONFIG(TAG, "    baudrate %d Bd", this->baud_rate_);
   ESP_LOGCONFIG(TAG, "    data_bits %d", this->data_bits_);
   ESP_LOGCONFIG(TAG, "    stop_bits %d", this->stop_bits_);
-  ESP_LOGCONFIG(TAG, "    parity %s", parity_to_str(this->parity_));
+  ESP_LOGCONFIG(TAG, "    parity %s", parity2string(this->parity_));
 }
 
 void SC16IS75XChannel::set_line_param_() {
