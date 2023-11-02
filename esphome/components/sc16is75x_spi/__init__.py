@@ -19,14 +19,14 @@ CODEOWNERS = ["@DrCoolZic"]
 DEPENDENCIES = ["spi"]
 
 sc16is75x_spi_ns = cg.esphome_ns.namespace("sc16is75x_spi")
-SC16IS75X_SPI_Component = sc16is75x_spi_ns.class_(
-    "SC16IS75X_SPI_Component", cg.Component, spi.SPIDevice
+SC16IS75XSPIComponent = sc16is75x_spi_ns.class_(
+    "SC16IS75XSPIComponent", cg.Component, spi.SPIDevice
 )
 SC16IS75XChannel = sc16is75x_spi_ns.class_(
     "SC16IS75XChannel", cg.Component, uart.UARTComponent
 )
 SC16IS75XGPIOPin = sc16is75x_spi_ns.class_(
-    "SC16IS75XGPIOPin", cg.GPIOPin, cg.Parented.template(SC16IS75X_SPI_Component)
+    "SC16IS75XGPIOPin", cg.GPIOPin, cg.Parented.template(SC16IS75XSPIComponent)
 )
 
 CONF_SC16IS75X = "sc16is75x_spi"
@@ -72,7 +72,7 @@ def post_validate(value):
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(SC16IS75X_SPI_Component),
+            cv.GenerateID(): cv.declare_id(SC16IS75XSPIComponent),
             cv.Optional(CONF_MODEL, default="SC16IS752"): cv.enum(
                 SC16IS75X_MODELS, upper=True
             ),
@@ -128,7 +128,7 @@ def validate_mode(value):
 SC16IS75X_PIN_SCHEMA = cv.All(
     {
         cv.GenerateID(): cv.declare_id(SC16IS75XGPIOPin),
-        cv.Required(CONF_SC16IS75X): cv.use_id(SC16IS75X_SPI_Component),
+        cv.Required(CONF_SC16IS75X): cv.use_id(SC16IS75XSPIComponent),
         cv.Required(CONF_NUMBER): cv.int_range(min=0, max=8),
         cv.Optional(CONF_MODE, default={}): cv.All(
             {

@@ -54,7 +54,7 @@ class SC16IS75XChannel;   ///< forward declaration
 using Channel = uint8_t;  ///< Channel definition
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief This class describes a SC16IS75X_SPI_Component.
+/// @brief This class describes a SC16IS75XSPIComponent.
 ///
 /// This class derives from two @ref esphome classes:
 /// - The Virtual @ref Component class.
@@ -65,9 +65,9 @@ using Channel = uint8_t;  ///< Channel definition
 /// - The @ref SC16IS75XGPIOPin class
 ///   that takes care of the details for the GPIO pins of the component.
 ///////////////////////////////////////////////////////////////////////////////
-class SC16IS75X_SPI_Component : public Component,
-                                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
-                                                      spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_8MHZ> {
+class SC16IS75XSPIComponent : public Component,
+                              public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                                    spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
  public:
   void set_model(SC16IS75XComponentModel model) { this->model_ = model; }
   void set_crystal(uint32_t crystal) { this->crystal_ = crystal; }
@@ -94,14 +94,14 @@ class SC16IS75X_SPI_Component : public Component,
   /// @param channel the channel number. Only significant for UART registers
   /// @param buffer to write
   /// @param length length of the buffer to write
-  void write_sc16is75x_register_(uint8_t reg_address, Channel channel, const uint8_t *buffer, size_t length = 1);
+  void write_sc16is75x_register_(uint8_t reg_address, Channel channel, const uint8_t *data, size_t length = 1);
 
   /// @brief All read calls to the component registers are done through this method
   /// @param reg_address the register address
   /// @param channel the channel number. Only significant for UART registers
   /// @param buffer pointer to the buffer
   /// @param length number of bytes to read
-  void read_sc16is75x_register_(uint8_t reg_address, Channel channel, uint8_t *buffer, size_t length = 1);
+  void read_sc16is75x_register_(uint8_t reg_address, Channel channel, uint8_t *data, size_t length = 1);
 
   /// Helper method to read the value of a pin.
   bool read_pin_val_(uint8_t pin);
@@ -156,7 +156,7 @@ class SC16IS75X_SPI_Component : public Component,
 ///////////////////////////////////////////////////////////////////////////////
 class SC16IS75XChannel : public uart::UARTComponent {
  public:
-  void set_parent(SC16IS75X_SPI_Component *parent) {
+  void set_parent(SC16IS75XSPIComponent *parent) {
     this->parent_ = parent;
     this->parent_->children_.push_back(this);  // add ourself to the vector list
   }
@@ -230,7 +230,7 @@ class SC16IS75XChannel : public uart::UARTComponent {
   void flush() override;
 
  protected:
-  friend class SC16IS75X_SPI_Component;
+  friend class SC16IS75XSPIComponent;
 
   /// @brief this cannot happen with external uart
   void check_logger_conflict() override {}
@@ -276,10 +276,10 @@ class SC16IS75XChannel : public uart::UARTComponent {
   void setup_channel_();
   void dump_channel_();
 
-  SC16IS75X_SPI_Component *parent_;  ///< our parent
-  Channel channel_;                  ///< our channel number
-  uint8_t data_{0};                  ///< one byte buffer
-  std::string name_;                 ///< name of the entity
+  SC16IS75XSPIComponent *parent_;  ///< our parent
+  Channel channel_;                ///< our channel number
+  uint8_t data_{0};                ///< one byte buffer
+  std::string name_;               ///< name of the entity
   struct {
     uint8_t data;      ///< store the read data
     bool empty{true};  ///< peek buffer is empty ?
@@ -291,7 +291,7 @@ class SC16IS75XChannel : public uart::UARTComponent {
 ///////////////////////////////////////////////////////////////////////////////
 class SC16IS75XGPIOPin : public GPIOPin {
  public:
-  void set_parent(SC16IS75X_SPI_Component *parent) { this->parent_ = parent; }
+  void set_parent(SC16IS75XSPIComponent *parent) { this->parent_ = parent; }
   void set_pin(uint8_t pin) { this->pin_ = pin; }
   void set_inverted(bool inverted) { this->inverted_ = inverted; }
   void set_flags(gpio::Flags flags) { this->flags_ = flags; }
@@ -308,7 +308,7 @@ class SC16IS75XGPIOPin : public GPIOPin {
   void digital_write(bool value) override { this->parent_->write_pin_val_(this->pin_, value != this->inverted_); }
 
  protected:
-  SC16IS75X_SPI_Component *parent_{nullptr};
+  SC16IS75XSPIComponent *parent_{nullptr};
   uint8_t pin_;
   bool inverted_;
   gpio::Flags flags_;
