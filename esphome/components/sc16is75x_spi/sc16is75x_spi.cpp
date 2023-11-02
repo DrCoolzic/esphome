@@ -124,9 +124,9 @@ void SC16IS75XSPIComponent::setup() {
 void SC16IS75XSPIComponent::dump_config() {
   const char *model_name = (this->model_ == SC16IS750_MODEL) ? "SC16IS750" : "SC16IS752";
   ESP_LOGCONFIG(TAG, "SC16IS75X SPI:%s with %d UARTs...", this->get_name(), this->children_.size());
-  ESP_LOGCONFIG(TAG, "  Model %s", model_name);
+  ESP_LOGCONFIG(TAG, "  Model: %s", model_name);
   LOG_PIN("  CS Pin: ", this->cs_);
-  ESP_LOGCONFIG(TAG, "  Crystal %d", this->crystal_);
+  ESP_LOGCONFIG(TAG, "  Crystal: %d", this->crystal_);
 
   for (auto *child : this->children_)
     child->dump_channel_();
@@ -147,10 +147,10 @@ void SC16IS75XChannel::setup_channel_() {
 
 void SC16IS75XChannel::dump_channel_() {
   ESP_LOGCONFIG(TAG, "  UART bus %s:%s...", this->parent_->get_name(), this->get_channel_name());
-  ESP_LOGCONFIG(TAG, "    baudrate %d Bd", this->baud_rate_);
-  ESP_LOGCONFIG(TAG, "    data_bits %d", this->data_bits_);
-  ESP_LOGCONFIG(TAG, "    stop_bits %d", this->stop_bits_);
-  ESP_LOGCONFIG(TAG, "    parity %s", parity2string(this->parity_));
+  ESP_LOGCONFIG(TAG, "    Baud Rate: %d Bd", this->baud_rate_);
+  ESP_LOGCONFIG(TAG, "    Data Bits: %d", this->data_bits_);
+  ESP_LOGCONFIG(TAG, "    Stop Bits: %d", this->stop_bits_);
+  ESP_LOGCONFIG(TAG, "    Parity: %s", parity2string(this->parity_));
 }
 
 void SC16IS75XChannel::set_line_param_() {
