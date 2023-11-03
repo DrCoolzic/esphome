@@ -12,8 +12,102 @@ namespace esphome {
 namespace sc16is75x_spi {
 
 #define TEST_COMPONENT
+#define USE_RING_BUFFER
 
-// size of the fifo
+#ifdef USE_RING_BUFFER
+///////////////////////////////////////////////////////////////////////////////
+/// @brief This is an helper class that provides a simple ring buffers
+/// that implements a FIFO function
+///
+/// This ring buffer is used to buffer the exchanges between the receiver
+/// HW fifo and the client. Usually to read characters you first
+/// check if bytes were received and if so you read them.
+/// There is a problem if you try to the received bytes one by one.
+/// If the registers are located on the chip everything is fine but with a
+/// device like the wk2132 these registers are remote and therefore accessing
+/// them requires several transactions on the I²C bus which is relatively slow.
+/// One solution would be for the client to check the number of bytes available
+/// and to read them all using the read_array() method. Unfortunately
+/// most client I have reviewed are reading one character at a time in a
+/// while loop which is the most inefficient way of doing things.
+/// Therefore the solution I have chosen to implement is to
+/// store received bytes locally in a buffer as soon as they arrive. With
+/// this solution the bytes are stored locally and therefore accessible
+/// very quickly when requested one by one.
+/// @image html read_cycles.png
+///////////////////////////////////////////////////////////////////////////////
+class RingBuffer {
+ public:
+  /// @brief Ctor : initialize variables with the given size
+  /// @param size size of the desired RingBuffer
+  ///
+  /// @note presence of this ctor invalidate usage of default ctor
+  RingBuffer(const size_t size) : size_(size) { rb_.resize(size); }
+
+  /// @brief pushes an item at the tail of the fifo
+  /// @param item item to push
+  /// @return true if item has been pushed, false il item was not pushed (buffer full)
+  bool push(const uint8_t item) {
+    if (is_full())
+      return false;
+    rb_[head_] = item;
+    head_ = (head_ + 1) % rb_.size();
+    count_++;
+    return true;
+  }
+
+  /// @brief return and remove the item at head of the fifo
+  /// @param item item read
+  /// @return true if item has been retrieved, false il no item was found (buffer empty)
+  bool pop(uint8_t &item) {
+    if (is_empty())
+      return false;
+    item = rb_[tail_];
+    tail_ = (tail_ + 1) % rb_.size();
+    count_--;
+    return true;
+  }
+
+  /// @brief return the value of the item at fifo's head without removing it
+  /// @param item pointer to item to return
+  /// @return true if item has been retrieved, false il no item was found (buffer empty)
+  bool peek(uint8_t &item) {
+    if (is_empty())
+      return false;
+    item = rb_[tail_];
+    return true;
+  }
+
+  /// @brief test is the Ring Buffer is empty ?
+  /// @return true if empty
+  bool is_empty() { return (count_ == 0); }
+
+  /// @brief test is the ring buffer is full ?
+  /// @return true if full
+  bool is_full() { return (count_ == rb_.size()); }
+
+  /// @brief return the number of item in the ring buffer
+  /// @return the count
+  size_t count() { return count_; }
+
+  /// @brief returns the number of free positions in the buffer
+  /// @return how many items can be added
+  size_t free() { return rb_.size() - count_; }
+
+  /// @brief clear the buffer content
+  void clear() { head_ = tail_ = count_ = 0; }
+
+ private:
+  std::vector<uint8_t> rb_;  // The ring buffer
+  const size_t size_;        // size of the ring buffer
+  int head_{0};              // points to the next element to write
+  int tail_{0};              // points to the next element to read
+  size_t count_{0};          // count number of element currently in the buffer
+};
+
+#endif
+
+// size of the sc16is75x buffer fifo
 constexpr size_t FIFO_SIZE = 64;
 
 // General sc16is75x registers
@@ -116,7 +210,6 @@ class SC16IS75XSPIComponent : public Component,
   /// @brief for testing the GPIO pins
   void test_gpio_input_();
   void test_gpio_output_();
-
 #endif
 
   /// pin config mask: 1 means OUTPUT, 0 means INPUT
@@ -162,6 +255,7 @@ class SC16IS75XChannel : public uart::UARTComponent {
   }
   void set_channel(Channel channel) { this->channel_ = channel; }
   void set_channel_name(std::string name) { this->name_ = std::move(name); }
+  void set_buffer_size(int buffer_size) { this->buffer_size_ = buffer_size; }
   const char *get_channel_name() { return this->name_.c_str(); }
 
   //
@@ -220,7 +314,7 @@ class SC16IS75XChannel : public uart::UARTComponent {
 
   /// @brief Returns the number of bytes in the receive buffer
   /// @return the number of bytes available in the receiver fifo
-  int available() override { return this->rx_in_fifo_(); }
+  int available() override;
 
   /// @brief Flush the output fifo.
   ///
@@ -237,7 +331,7 @@ class SC16IS75XChannel : public uart::UARTComponent {
 
   /// @brief returns the number of bytes currently in the receiver fifo
   /// @return the number of bytes
-  size_t rx_in_fifo_() { return (this->read_register_(SC16IS75X_REG_RXF) + (this->peek_buffer_.empty ? 0 : 1)); }
+  size_t rx_in_fifo_() { return this->read_register_(SC16IS75X_REG_RXF); }
 
   /// @brief returns the number of bytes currently in the transmitter fifo
   /// @return the number of bytes
@@ -280,10 +374,16 @@ class SC16IS75XChannel : public uart::UARTComponent {
   Channel channel_;                ///< our channel number
   uint8_t data_{0};                ///< one byte buffer
   std::string name_;               ///< name of the entity
+  int buffer_size_{256};           // requested ring buffer size
+#ifdef USE_RING_BUFFER
+  RingBuffer *receive_buffer_;  // the receive buffer
+  size_t rx_fifo_to_buffer_();  // method to transfer rx_fifo to buffer
+#else                           // no ring buffer
   struct {
     uint8_t data;      ///< store the read data
     bool empty{true};  ///< peek buffer is empty ?
   } peek_buffer_;
+#endif
 };
 
 ///////////////////////////////////////////////////////////////////////////////

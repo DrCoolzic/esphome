@@ -143,6 +143,9 @@ void SC16IS75XChannel::setup_channel_() {
   this->parent_->write_sc16is75x_register_(SC16IS75X_REG_FCR, this->channel_, &fcr);
   this->set_baudrate_();
   this->set_line_param_();
+#ifdef USE_RING_BUFFER
+  this->receive_buffer_ = new RingBuffer(this->buffer_size_);
+#endif
 }
 
 void SC16IS75XChannel::dump_channel_() {
@@ -231,6 +234,10 @@ void SC16IS75XChannel::set_baudrate_() {
   }
 }
 
+//
+//  override UARTComponent methods
+//
+
 void SC16IS75XChannel::write_array(const uint8_t *buffer, size_t length) {
   if (length > FIFO_SIZE) {
     ESP_LOGE(TAG, "write_array() invalid call: requested %d bytes max size %d ...", length, FIFO_SIZE);
@@ -262,7 +269,53 @@ void SC16IS75XChannel::flush() {
   ESP_LOGVV(TAG, "flush(): flushed the bytes in tx fifo");
 }
 
+#ifdef USE_RING_BUFFER
+size_t SC16IS75XChannel::rx_fifo_to_buffer_() {
+  // we look if some characters has been received in the fifo
+  auto to_transfer = this->rx_in_fifo_();
+  if (to_transfer) {
+    uint8_t data[to_transfer];
+    this->read_data_(data, to_transfer);
+    auto free = this->receive_buffer_->free();
+    if (to_transfer > free) {
+      ESP_LOGW(TAG, "Ring buffer overrun --> bytes in fifo %d available in buffer %d", to_transfer, free);
+      to_transfer = free;  // hopefully will do the rest next time
+    }
+    ESP_LOGV(TAG, "Transferred %d bytes from rx_fifo to buffer ring", to_transfer);
+    for (size_t i = 0; i < to_transfer; i++)
+      this->receive_buffer_->push(data[i]);
+  }
+  return to_transfer;
+}
+#endif
+
 bool SC16IS75XChannel::read_array(uint8_t *buffer, size_t length) {
+#ifdef USE_RING_BUFFER
+  bool status = true;
+  size_t received;
+
+  if (length > this->buffer_size_) {
+    ESP_LOGE(TAG, "read_array() invalid call: requested %d bytes max length %d ...", length, this->buffer_size_);
+    return false;
+  }
+
+  // we wait until we have received the requested bytes
+  uint32_t const start_time = millis();
+  while (length > (received = this->available())) {
+    this->rx_fifo_to_buffer_();  // try to transfer more
+    if (millis() - start_time > 100) {
+      ESP_LOGE(TAG, "read_array() underrun: %d bytes requested %d received", length, this->rx_in_fifo_());
+      return false;
+    }
+    yield();  // reschedule our thread to avoid blocking
+  }
+
+  for (size_t i = 0; i < received; i++) {
+    this->receive_buffer_->pop(buffer[i]);
+  }
+  return status;
+
+#else
   if (length > FIFO_SIZE) {
     ESP_LOGE(TAG, "read_array() invalid call: requested %d bytes max size %d ...", length, FIFO_SIZE);
     return false;
@@ -286,9 +339,13 @@ bool SC16IS75XChannel::read_array(uint8_t *buffer, size_t length) {
   }
   this->read_data_(buffer, length);
   return true;
+#endif
 }
 
 bool SC16IS75XChannel::peek_byte(uint8_t *buffer) {
+#ifdef USE_RING_BUFFER
+  return this->receive_buffer_->peek(*buffer);
+#else
   if (peek_buffer_.empty && available() == 0)
     return false;
   if (peek_buffer_.empty) {
@@ -297,6 +354,22 @@ bool SC16IS75XChannel::peek_byte(uint8_t *buffer) {
   }
   *buffer = peek_buffer_.data;
   return true;
+#endif
+}
+
+int SC16IS75XChannel::available() {
+#ifdef USE_RING_BUFFER
+  auto available = this->receive_buffer_->count();
+  // here if we do not have bytes in buffer we want to check if
+  // there are bytes in the fifo,in which case we do not want to
+  // delay reading them in the next loop.
+  if (!available)
+    available = this->rx_fifo_to_buffer_();
+  ESP_LOGVV(TAG, "available(): %d bytes received", available);
+  return available;
+#else
+  return (this->rx_in_fifo_() + (this->peek_buffer_.empty ? 0 : 1));
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -353,47 +426,49 @@ void print_buffer(std::vector<uint8_t> buffer) {
 /// @brief test the write_array method
 void SC16IS75XChannel::uart_send_test_(char *message) {
   auto start_exec = micros();
-  uint8_t to_send = FIFO_SIZE;
   this->flush();  // we wait until they are gone
-
-  if (to_send > 0) {
-    std::vector<uint8_t> output_buffer(to_send);
-    generate(output_buffer.begin(), output_buffer.end(), Increment());  // fill with incrementing number
-    this->write_array(&output_buffer[0], to_send);                      // we send the buffer
-    ESP_LOGV(TAG, "%s => sending %d bytes - exec time %d µs ...", message, to_send, micros() - start_exec);
-  }
+  std::vector<uint8_t> output_buffer(FIFO_SIZE);
+  generate(output_buffer.begin(), output_buffer.end(), Increment());  // fill with incrementing number
+  this->write_array(&output_buffer[0], FIFO_SIZE);                    // we send the buffer
+  ESP_LOGV(TAG, "%s => sending %d bytes - exec time %d µs ...", message, FIFO_SIZE, micros() - start_exec);
 }
 
 /// @brief test read_array method
 bool SC16IS75XChannel::uart_receive_test_(char *message) {
   auto start_exec = micros();
   bool status = true;
-  uint8_t to_read = rx_in_fifo_();
+  size_t received;
+  std::vector<uint8_t> buffer(FIFO_SIZE);
 
-  if (to_read > 0) {
-    std::vector<uint8_t> buffer(to_read);
-    uint8_t peek_value;
-    this->peek_byte(&peek_value);
-    if (peek_value != 0) {
-      ESP_LOGE(TAG, "Peek first byte error...");
-      print_buffer(buffer);
-      status = false;
+  // we wait until we have received all the bytes
+  uint32_t const start_time = millis();
+  while (FIFO_SIZE > (received = this->available())) {
+    if (millis() - start_time > 100) {
+      ESP_LOGE(TAG, "uart_receive_test() timeout: only %d bytes received...", received);
+      break;
     }
-    status = status && this->read_array(&buffer[0], to_read);
-    for (int i = 0; i < to_read; i++) {
-      if (buffer[i] != i) {
-        ESP_LOGE(TAG, "Read buffer contains error...");
-        print_buffer(buffer);
-        status = false;
-        break;
-      }
-    }
+    yield();  // reschedule our thread to avoid blocking
   }
-  if (to_read < FIFO_SIZE) {
-    ESP_LOGE(TAG, "%s => %d bytes received expected %d ...", message, to_read, FIFO_SIZE);
+
+  uint8_t peek_value;
+  this->peek_byte(&peek_value);
+  if (peek_value != 0) {
+    ESP_LOGE(TAG, "Peek first byte value error...");
+    print_buffer(buffer);
     status = false;
   }
-  ESP_LOGV(TAG, "%s => %d bytes received status %s - exec time %d µs ...", message, to_read, status ? "OK" : "ERROR",
+
+  status = status && this->read_array(&buffer[0], FIFO_SIZE);
+  for (int i = 0; i < FIFO_SIZE; i++) {
+    if (buffer[i] != i) {
+      ESP_LOGE(TAG, "Read buffer contains error...");
+      print_buffer(buffer);
+      status = false;
+      break;
+    }
+  }
+
+  ESP_LOGV(TAG, "%s => %d bytes received status %s - exec time %d µs ...", message, FIFO_SIZE, status ? "OK" : "ERROR",
            micros() - start_exec);
   return status;
 }
