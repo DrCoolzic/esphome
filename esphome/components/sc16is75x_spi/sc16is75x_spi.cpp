@@ -310,7 +310,7 @@ bool SC16IS75XChannel::read_array(uint8_t *buffer, size_t length) {
     yield();  // reschedule our thread to avoid blocking
   }
 
-  for (size_t i = 0; i < received; i++) {
+  for (size_t i = 0; i < length; i++) {
     this->receive_buffer_->pop(buffer[i]);
   }
   return status;
