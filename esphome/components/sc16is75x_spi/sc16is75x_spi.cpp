@@ -8,6 +8,7 @@ the SC16IS75X related classes.
 */
 
 #include "sc16is75x_spi.h"
+#include <assert.h>
 
 namespace esphome {
 namespace sc16is75x_spi {
@@ -310,6 +311,7 @@ bool SC16IS75XChannel::read_array(uint8_t *buffer, size_t length) {
     yield();  // reschedule our thread to avoid blocking
   }
 
+  assert(length <= this->receive_buffer_->count());
   for (size_t i = 0; i < length; i++) {
     this->receive_buffer_->pop(buffer[i]);
   }
@@ -514,17 +516,14 @@ void SC16IS75XSPIComponent::test_gpio_output_() {
 
 void SC16IS75XSPIComponent::loop() {
   // if (this->component_state_ & COMPONENT_STATE_MASK != COMPONENT_STATE_LOOP) // TODO
-  if (!this->initialized_)
+  if (!this->initialized_ || !test_mode_)
     return;
 
   static uint32_t loop_time = 0;
   static uint32_t loop_count = 0;
   uint32_t time = 0;
-
-  if (test_mode_) {
-    ESP_LOGV(TAG, "Component loop %d for %s : %d ms since last call ...", loop_count, this->get_name(),
-             millis() - loop_time);
-  }
+  ESP_LOGV(TAG, "Component loop %d for %s : %d ms since last call ...", loop_count, this->get_name(),
+           millis() - loop_time);
   loop_time = millis();
   loop_count++;
 
