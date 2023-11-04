@@ -513,6 +513,7 @@ void SC16IS75XSPIComponent::test_gpio_output_() {
 }
 
 void SC16IS75XSPIComponent::loop() {
+  // if (this->component_state_ & COMPONENT_STATE_MASK != COMPONENT_STATE_LOOP) // TODO
   if (!this->initialized_)
     return;
 

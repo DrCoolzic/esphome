@@ -176,7 +176,7 @@ class SC16IS75XSPIComponent : public Component,
   void setup() override;
   void dump_config() override;
   void loop() override;
-  float get_setup_priority() const override { return setup_priority::IO; }
+  float get_setup_priority() const override { return setup_priority::BUS - 0.5f; }
 
  protected:
   // we give access to protected objects to our friends :)
