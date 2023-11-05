@@ -225,7 +225,6 @@ class SC16IS75XSPIComponent : public Component,
   std::vector<SC16IS75XChannel *> children_{};  ///< the list of SC16IS75XChannel UART children
   int test_mode_;                               ///< test_mode value (0 no test)
   std::string name_;                            ///< store name of entity
-  bool initialized_{false};                     ///< true when component initialized
   uint8_t special_reg_{0};                      ///< 1 when accessing special register
 };
 

@@ -70,8 +70,8 @@ void SC16IS75XSPIComponent::write_sc16is75x_register_(uint8_t reg, Channel chann
   this->write_byte(aob);
   this->write_array(data, length);
   this->disable();
-  ESP_LOGVV(TAG, "write_sc16is75x_register_ [%s, %d] => %02X, b=%02X, length=%d",
-            WRITE_REG_TO_STR[this->special_reg_][reg], channel, aob, *data, length);
+  ESP_LOGVV(TAG, "write_sc16is75x_register_: %02X [%s, %d] b=%s", aob, WRITE_REG_TO_STR[this->special_reg_][reg],
+            channel, format_hex_pretty(data, length).c_str());
 }
 
 void SC16IS75XSPIComponent::read_sc16is75x_register_(uint8_t reg, Channel channel, uint8_t *data, size_t length) {
@@ -80,8 +80,8 @@ void SC16IS75XSPIComponent::read_sc16is75x_register_(uint8_t reg, Channel channe
   this->write_byte(aob);
   this->read_array(data, length);
   this->disable();
-  ESP_LOGVV(TAG, "read_sc16is75x_register_ [%s, %X] => %02X, b=%02X, length=%d",
-            READ_REG_TO_STR[this->special_reg_][reg], channel, aob, *data, length);
+  ESP_LOGVV(TAG, "read_sc16is75x_register_: %02X [%s, %d] %s", aob, READ_REG_TO_STR[this->special_reg_][reg], channel,
+            format_hex_pretty(data, length).c_str());
 }
 
 bool SC16IS75XSPIComponent::read_pin_val_(uint8_t pin) {
@@ -92,7 +92,7 @@ bool SC16IS75XSPIComponent::read_pin_val_(uint8_t pin) {
 
 void SC16IS75XSPIComponent::write_pin_val_(uint8_t pin, bool value) {
   value ? this->output_state_ |= (1 << pin) : this->output_state_ &= ~(1 << pin);
-  ESP_LOGV(TAG, "writing output pin %d with %d out_state %s", pin, value, I2CS(this->output_state_));
+  ESP_LOGVV(TAG, "writing output pin %d with %d out_state %s", pin, value, I2CS(this->output_state_));
   this->write_sc16is75x_register_(SC16IS75X_REG_IOS, 0, &this->output_state_);
 }
 
@@ -106,7 +106,7 @@ void SC16IS75XSPIComponent::set_pin_direction_(uint8_t pin, gpio::Flags flags) {
       ESP_LOGE(TAG, "pin %d direction invalid", pin);
     }
   }
-  ESP_LOGD(TAG, "setting pin %d direction to %d pin_config=%s", pin, flags, I2CS(this->pin_config_));
+  ESP_LOGVV(TAG, "setting pin %d direction to %d pin_config=%s", pin, flags, I2CS(this->pin_config_));
   this->write_sc16is75x_register_(SC16IS75X_REG_IOD, 0, &this->pin_config_);  // TODO check ~
 }
 
@@ -131,7 +131,6 @@ void SC16IS75XSPIComponent::dump_config() {
 
   for (auto *child : this->children_)
     child->dump_channel_();
-  this->initialized_ = true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -255,6 +254,7 @@ void SC16IS75XChannel::write_array(const uint8_t *buffer, size_t length) {
     yield();  // reschedule our thread to avoid blocking
   }
   this->write_data_(buffer, length);
+  ESP_LOGVV(TAG, "write_array: %s", format_hex_pretty(buffer, length).c_str());
 }
 
 void SC16IS75XChannel::flush() {
@@ -282,10 +282,10 @@ size_t SC16IS75XChannel::rx_fifo_to_buffer_() {
       ESP_LOGW(TAG, "Ring buffer overrun --> bytes in fifo %d available in buffer %d", to_transfer, free);
       to_transfer = free;  // hopefully will do the rest next time
     }
-    ESP_LOGV(TAG, "Transferred %d bytes from rx_fifo to buffer ring", to_transfer);
     for (size_t i = 0; i < to_transfer; i++)
       this->receive_buffer_->push(data[i]);
   }
+  ESP_LOGV(TAG, "Transferred %d bytes from rx_fifo to buffer ring", to_transfer);
   return to_transfer;
 }
 #endif
@@ -311,10 +311,11 @@ bool SC16IS75XChannel::read_array(uint8_t *buffer, size_t length) {
     yield();  // reschedule our thread to avoid blocking
   }
 
-  assert(length <= this->receive_buffer_->count());
+  // assert(length <= this->receive_buffer_->count());
   for (size_t i = 0; i < length; i++) {
     this->receive_buffer_->pop(buffer[i]);
   }
+  ESP_LOGVV(TAG, "read_array: %s", format_hex_pretty(buffer, length).c_str());
   return status;
 
 #else
@@ -515,8 +516,8 @@ void SC16IS75XSPIComponent::test_gpio_output_() {
 }
 
 void SC16IS75XSPIComponent::loop() {
-  // if (this->component_state_ & COMPONENT_STATE_MASK != COMPONENT_STATE_LOOP) // TODO
-  if (!this->initialized_ || !test_mode_)
+  bool initialized = this->component_state_ & COMPONENT_STATE_MASK == COMPONENT_STATE_LOOP;
+  if (!initialized || !test_mode_)
     return;
 
   static uint32_t loop_time = 0;
