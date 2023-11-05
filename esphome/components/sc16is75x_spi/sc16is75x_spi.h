@@ -226,6 +226,8 @@ class SC16IS75XSPIComponent : public Component,
   int test_mode_;                               ///< test_mode value (0 no test)
   std::string name_;                            ///< store name of entity
   uint8_t special_reg_{0};                      ///< 1 when accessing special register
+
+  HighFrequencyLoopRequester high_freq_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

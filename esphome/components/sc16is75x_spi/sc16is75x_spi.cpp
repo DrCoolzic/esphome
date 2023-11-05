@@ -50,7 +50,7 @@ static const char *const WRITE_REG_TO_STR[2][16] = {
     {"THR", "IER", "FCR", "LCR", "MCR", "LSR", "TCR", "SPR", "???", "???", "IOD", "IOS", "IOI", "IOC", "EFR", "???"},
     {"DLL", "DHL", "EFR", "???", "XO1", "XO2", "XF1", "XF2", "???", "???", "???", "???", "???", "???", "???", "???"}};
 static const char *const READ_REG_TO_STR[2][16] = {
-    {"RHR", "IER", "IIR", "LCR", "MCR", "LSR", "MSR", "SPR", "TXF", "RXF", "IOD", "IOP", "IOI", "IOC", "EFR", "???"},
+    {"RHR", "IER", "IIR", "LCR", "MCR", "LSR", "MSR", "SPR", "TXF", "RXF", "IOD", "IOS", "IOI", "IOC", "EFR", "???"},
     {"DLL", "DHL", "EFR", "???", "XO1", "XO2", "XF1", "XF2", "???", "???", "???", "???", "???", "???", "???", "???"}};
 
 enum TransferType { WRITE, READ };
@@ -120,6 +120,8 @@ void SC16IS75XSPIComponent::setup() {
   // setup our children
   for (auto *child : this->children_)
     child->setup_channel_();
+
+  this->high_freq_.start();
 }
 
 void SC16IS75XSPIComponent::dump_config() {
@@ -272,21 +274,33 @@ void SC16IS75XChannel::flush() {
 
 #ifdef USE_RING_BUFFER
 size_t SC16IS75XChannel::rx_fifo_to_buffer_() {
-  // we look if some characters has been received in the fifo
+  // we transfer as many bytes as we can
   auto to_transfer = this->rx_in_fifo_();
   if (to_transfer) {
+    if (to_transfer > this->receive_buffer_->free())
+      to_transfer = this->receive_buffer_->free();
     uint8_t data[to_transfer];
     this->read_data_(data, to_transfer);
-    auto free = this->receive_buffer_->free();
-    if (to_transfer > free) {
-      ESP_LOGW(TAG, "Ring buffer overrun --> bytes in fifo %d available in buffer %d", to_transfer, free);
-      to_transfer = free;  // hopefully will do the rest next time
-    }
     for (size_t i = 0; i < to_transfer; i++)
       this->receive_buffer_->push(data[i]);
   }
-  ESP_LOGV(TAG, "Transferred %d bytes from rx_fifo to buffer ring", to_transfer);
   return to_transfer;
+
+  //   // we look if some characters has been received in the fifo
+  // auto to_transfer = this->rx_in_fifo_();
+  // if (to_transfer) {
+  //   uint8_t data[to_transfer];
+  //   this->read_data_(data, to_transfer);
+  //   auto free = this->receive_buffer_->free();
+  //   if (to_transfer > free) {
+  //     ESP_LOGV(TAG, "Ring buffer overrun --> bytes in fifo %d available in buffer %d", to_transfer, free);
+  //     to_transfer = free;  // hopefully will do the rest next time
+  //   }
+  //   for (size_t i = 0; i < to_transfer; i++)
+  //     this->receive_buffer_->push(data[i]);
+  // }
+  // ESP_LOGV(TAG, "Transferred %d bytes from rx_fifo to buffer ring", to_transfer);
+  // return to_transfer
 }
 #endif
 
@@ -516,8 +530,12 @@ void SC16IS75XSPIComponent::test_gpio_output_() {
 }
 
 void SC16IS75XSPIComponent::loop() {
-  bool initialized = this->component_state_ & COMPONENT_STATE_MASK == COMPONENT_STATE_LOOP;
-  if (!initialized || !test_mode_)
+  if (this->component_state_ & COMPONENT_STATE_MASK != COMPONENT_STATE_LOOP)
+    return;
+  for (auto *child : this->children_)
+    child->rx_fifo_to_buffer_();
+
+  if (!test_mode_)
     return;
 
   static uint32_t loop_time = 0;
