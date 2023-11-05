@@ -274,7 +274,7 @@ void SC16IS75XChannel::flush() {
 
 #ifdef USE_RING_BUFFER
 size_t SC16IS75XChannel::rx_fifo_to_buffer_() {
-  // we transfer as many bytes as we can
+  // we transfer as many bytes as we can from FIFO to buffer
   auto to_transfer = this->rx_in_fifo_();
   if (to_transfer) {
     if (to_transfer > this->receive_buffer_->free())
@@ -285,22 +285,6 @@ size_t SC16IS75XChannel::rx_fifo_to_buffer_() {
       this->receive_buffer_->push(data[i]);
   }
   return to_transfer;
-
-  //   // we look if some characters has been received in the fifo
-  // auto to_transfer = this->rx_in_fifo_();
-  // if (to_transfer) {
-  //   uint8_t data[to_transfer];
-  //   this->read_data_(data, to_transfer);
-  //   auto free = this->receive_buffer_->free();
-  //   if (to_transfer > free) {
-  //     ESP_LOGV(TAG, "Ring buffer overrun --> bytes in fifo %d available in buffer %d", to_transfer, free);
-  //     to_transfer = free;  // hopefully will do the rest next time
-  //   }
-  //   for (size_t i = 0; i < to_transfer; i++)
-  //     this->receive_buffer_->push(data[i]);
-  // }
-  // ESP_LOGV(TAG, "Transferred %d bytes from rx_fifo to buffer ring", to_transfer);
-  // return to_transfer
 }
 #endif
 
