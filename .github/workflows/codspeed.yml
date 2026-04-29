@@ -1,0 +1,70 @@
+---
+name: CodSpeed
+
+on:
+  push:
+    branches:
+      - dev
+  pull_request:
+  # `workflow_dispatch` allows CodSpeed to trigger backtest
+  # performance analysis in order to generate initial data.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  DEFAULT_PYTHON: "3.11"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmarks:
+    name: Run CodSpeed benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Python ${{ env.DEFAULT_PYTHON }}
+        id: python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+
+      - name: Restore Python virtual environment
+        id: cache-venv
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: venv
+          key: >-
+            ${{ runner.os }}-${{ steps.python.outputs.python-version }}-venv-benchmarks-${{
+              hashFiles('requirements.txt', 'requirements_test.txt')
+            }}
+
+      - name: Create Python virtual environment
+        if: steps.cache-venv.outputs.cache-hit != 'true'
+        run: |
+          python -m venv venv
+          . venv/bin/activate
+          python --version
+          pip install -r requirements.txt -r requirements_test.txt
+          pip install -e .
+
+      - name: Build benchmarks
+        id: build
+        run: |
+          . venv/bin/activate
+          export BENCHMARK_LIB_CONFIG=$(python script/setup_codspeed_lib.py)
+          # --build-only prints BUILD_BINARY=<path> to stdout
+          BINARY=$(script/cpp_benchmark.py --all --build-only | grep '^BUILD_BINARY=' | tail -1 | cut -d= -f2-)
+          echo "binary=$BINARY" >> $GITHUB_OUTPUT
+
+      - name: Run CodSpeed benchmarks
+        uses: CodSpeedHQ/action@c381be0bfd20e844fb45594f6aa182ffcd94545c # v4.15.0
+        with:
+          run: ${{ steps.build.outputs.binary }}
+          mode: simulation
